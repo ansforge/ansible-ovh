@@ -1,0 +1,8 @@
+---
+- name: Deploiement du Serveur FreeIPA IDM
+  hosts: ipaservers
+  become: yes
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+  roles:
+    - role_setup_freeipa_server

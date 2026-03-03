@@ -1,0 +1,10 @@
+---
+- name: Passkeyconfig example
+  hosts: ipaserver
+  become: no
+
+  tasks:
+  - name: Set passkeyconfig require_user_verification to false
+    freeipa.ansible_freeipa.ipapasskeyconfig:
+      ipaadmin_password: SomeADMINpassword
+      require_user_verification: false

@@ -1,0 +1,3 @@
+openscap_profiles:
+  -'xccdf_org.ssgproject.content_profile_cis_1_server'
+openscap_log_path: '/var/log/openscap'

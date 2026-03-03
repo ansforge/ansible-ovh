@@ -1,0 +1,7 @@
+---
+- name: Déploiement des clés SSH publiques sur les serveurs cibles
+  hosts: "{{ HOSTS }}"
+  gather_facts: no
+  become: yes
+  roles:
+    - role_copy_ssh_key

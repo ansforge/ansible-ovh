@@ -1,0 +1,7 @@
+---
+- name: Configurer toutes les machines pour utiliser le Repo Local
+  hosts: "{{ HOSTS }}:!repo"
+  become: yes
+
+  roles:
+    - role_setup_repo_client

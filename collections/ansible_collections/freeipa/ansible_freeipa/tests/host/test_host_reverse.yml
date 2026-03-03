@@ -1,0 +1,116 @@
+---
+- name: Test host reverse attribute
+  hosts: ipaserver
+  become: true
+
+  module_defaults:
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+    freeipa.ansible_freeipa.ipadnszone:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+
+  tasks:
+  - name: Get Domain from server name
+    ansible.builtin.set_fact:
+      ipaserver_domain: "{{ ansible_facts['fqdn'].split('.')[1:] | join('.') }}"
+    when: ipaserver_domain is not defined
+
+  - name: Set host1_fqdn
+    ansible.builtin.set_fact:
+      host1_fqdn: "{{ 'host1.' + ipaserver_domain }}"
+
+  - name: Host absent
+    freeipa.ansible_freeipa.ipahost:
+      name:
+      - "{{ host1_fqdn }}"
+      update_dns: yes
+      state: absent
+
+  - name: Get IPv4 address prefix from server node
+    ansible.builtin.set_fact:
+      ipv4_prefix: "{{ ansible_facts['default_ipv4'].address.split('.')[:-1] |
+                       join('.') }}"
+
+  - name: Set zone prefixes.
+    ansible.builtin.set_fact:
+      zone_ipv6_reverse_workaround: "d.f.ip6.arpa."
+      zone_prefix_reverse_8: "{{ ipv4_prefix.split('.')[2::-1] | join('.') }}.in-addr.arpa"
+      zone_prefix_reverse_16: "{{ ipv4_prefix.split('.')[1::-1] | join('.') }}.in-addr.arpa"
+      zone_prefix_reverse_24: "{{ ipv4_prefix.split('.')[::-1] | join('.') }}.in-addr.arpa"
+
+  - name: Set zone for reverse address.
+    freeipa.ansible_freeipa.ipadnszone:
+      name: "{{ item }}"
+      skip_nameserver_check: yes
+      skip_overlap_check: yes
+    with_items:
+      - "{{ zone_ipv6_reverse_workaround }}"
+      - "{{ zone_prefix_reverse_8 }}"
+      - "{{ zone_prefix_reverse_16 }}"
+      - "{{ zone_prefix_reverse_24 }}"
+
+  - name: Host "{{ host1_fqdn }}" present
+    freeipa.ansible_freeipa.ipahost:
+      name: "{{ host1_fqdn }}"
+      ip_address: "{{ ipv4_prefix + '.201' }}"
+      update_dns: yes
+      reverse: yes
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Host "{{ host1_fqdn }}" present, again.
+    freeipa.ansible_freeipa.ipahost:
+      name: "{{ host1_fqdn }}"
+      ip_address: "{{ ipv4_prefix + '.201' }}"
+      update_dns: yes
+      reverse: yes
+    register: result
+    failed_when: result.changed or result.failed
+
+  - name: Hosts host1 absent
+    freeipa.ansible_freeipa.ipahost:
+      name:
+      - "{{ host1_fqdn }}"
+      update_dns: yes
+      state: absent
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Host "{{ host1_fqdn }}" present with IPv6
+    freeipa.ansible_freeipa.ipahost:
+      name: "{{ host1_fqdn }}"
+      ip_address: "fd00::0001"
+      update_dns: yes
+      reverse: yes
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Host "{{ host1_fqdn }}" present with IPv6, again.
+    freeipa.ansible_freeipa.ipahost:
+      name: "{{ host1_fqdn }}"
+      ip_address: "fd00::0001"
+      update_dns: yes
+      reverse: yes
+    register: result
+    failed_when: result.changed or result.failed
+
+  - name: Hosts host1 absent
+    freeipa.ansible_freeipa.ipahost:
+      name:
+      - "{{ host1_fqdn }}"
+      update_dns: yes
+      state: absent
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Delete zone for reverse address.
+    freeipa.ansible_freeipa.ipadnszone:
+      name: "{{ item }}"
+      state: absent
+    with_items:
+      - "{{ zone_ipv6_reverse_workaround }}"
+      - "{{ zone_prefix_reverse_8 }}"
+      - "{{ zone_prefix_reverse_16 }}"
+      - "{{ zone_prefix_reverse_24 }}"

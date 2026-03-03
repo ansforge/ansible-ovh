@@ -1,0 +1,6 @@
+---
+- name: Configurer Chrony
+  hosts: "{{ HOSTS }}"
+  become: yes
+  roles:
+    - role_chrony

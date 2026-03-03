@@ -1,0 +1,8 @@
+-r requirements.txt
+pytest
+pytest-sourceorder
+pytest-split>=0.8.0
+pytest-custom_exit_code>=0.3.0
+pytest-testinfra
+pytest-randomly
+pyyaml>=3

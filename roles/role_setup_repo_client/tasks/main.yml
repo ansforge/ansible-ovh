@@ -1,0 +1,28 @@
+---
+- name: Créer un dossier de backup pour les anciens dépôts
+  ansible.builtin.file:
+    path: /etc/yum.repos.d/backup
+    state: directory
+    mode: "0755"
+
+- name: Désactiver tous les dépôts AlmaLinux par défaut vers backup
+  ansible.builtin.shell: mv /etc/yum.repos.d/*.repo  /etc/yum.repos.d/backup/
+  failed_when: false
+
+- name: Configurer les dépôts locaux
+  ansible.builtin.yum_repository:
+    name: "{{ repository.name }}"
+    description: "{{ repository.description }}"
+    baseurl: "{{ repository.baseurl }}"
+    enabled: true
+    gpgcheck: true
+    gpgkey: "{{ gpgkey }}"
+  loop: "{{ repositories }}"
+  loop_control:
+    loop_var: repository
+
+- name: Nettoyer le cache DNF
+  ansible.builtin.command: dnf clean all
+
+- name: Reconstruire la base de données DNF
+  ansible.builtin.command: dnf makecache

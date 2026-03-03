@@ -1,0 +1,6 @@
+---
+- name: Configurer serveur de dépôt
+  hosts: repo
+  become: yes
+  roles:
+    - role_setup_repo_server

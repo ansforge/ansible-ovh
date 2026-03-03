@@ -1,0 +1,39 @@
+- name: Play to remove host from inventory
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    inv_lockfile_name: "{{ inventory_dir }}/lock/inv_update.lock"
+
+  tasks:
+    - ansible.builtin.debug:
+        msg: "About to remove host {{ vm_name }} from inventory {{ inventory_file }}"
+
+    - block:
+      - name: Lock the inventory to remove host or wait until lockfile has been released
+        manage_lockfile:
+        args:
+          lockfile_name: "{{ inv_lockfile_name }}"
+
+      rescue:
+        - ansible.builtin.fail:
+            msg: "Cannot udpate inventory to remove host {{ vm_name }}"
+
+    - block:
+      - name: Remove host from inventory file
+        ansible.builtin.lineinfile:
+          path: "{{ inventory_file }}"
+          regexp: "^{{ vm_name }}$"
+          state: absent
+
+      always:
+        - name: Release the lock file {{ inv_lockfile_name }}
+          ansible.builtin.file:
+            path: "{{ inv_lockfile_name }}"
+            state: absent
+
+    - name: Delete the hostvars file associated with host
+      ansible.builtin.file:
+        path: "{{ inventory_dir }}/host_vars/{{ vm_name }}.yml"
+        state: absent
+

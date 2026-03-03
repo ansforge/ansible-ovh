@@ -1,0 +1,77 @@
+---
+- name: Integration des données dans FreeIPA
+  hosts: "{{ groups['ipaservers'][0] }}"
+  become: yes
+
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+
+  vars:
+    ipa_user_update_password_policy: on_create
+
+    # Groupes à créer
+    ipa_groups:
+      - name: gr-infra-admin-preprod
+    
+    # Utilisateurs à créer (avec leurs groupes)
+    ipa_users:
+      - name: schaabane
+        first: Safouane
+        last: Chabane
+        email: safouane.chaabane@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        groups:
+          - gr-infra-admin-preprod
+      - name: gdidenot
+        first: Gregoire
+        last: Didenot
+        email: gregoire.didenot@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        groups:
+          - gr-infra-admin-preprod
+      - name: jcsesia
+        first: Jean-Claude
+        last: Sesia
+        email: jean-claude.sesia@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        passwordexpiration: "2026-02-27 10:15:00"
+        groups:
+          - gr-infra-admin-preprod
+
+  tasks:
+    - name: Create Groups
+      freeipa.ansible_freeipa.ipagroup:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        name: "{{ item.name }}"
+        state: present
+      loop: "{{ ipa_groups }}"
+    
+    - name: Create Users
+      freeipa.ansible_freeipa.ipauser:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        name: "{{ item.name }}"
+        first: "{{ item.first }}"
+        last: "{{ item.last }}"
+        email: "{{ item.email }}"
+        password: "{{ item.password }}"
+        state: present
+      loop: "{{ ipa_users }}"
+      loop_control:
+        label: "{{ item.name }}"
+    
+    - name: Add users to their respective groups
+      freeipa.ansible_freeipa.ipagroup:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        name: "{{ item.1 }}"
+        user: "{{ item.0.name }}"
+        state: present
+        action: member
+      with_subelements:
+        - "{{ ipa_users }}"
+        - groups
+        - skip_missing: true
+      loop_control:
+        label: "{{ item.0.name }} -> {{ item.1 }}"

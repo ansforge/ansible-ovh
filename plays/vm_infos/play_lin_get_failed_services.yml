@@ -1,0 +1,17 @@
+- name: Play to get failed services on host
+  hosts: "{{ HOSTS }}"
+  gather_facts: no
+
+
+  tasks:
+    - name: Populate service facts
+      ansible.builtin.service_facts:
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ item['name'] | replace('.service','') }} is failed"
+      loop: "{{ failed_services }}"
+      vars:
+        failed_services: "{{ ansible_facts['services'].values() | selectattr('status', 'equalto', 'failed') }}"
+      failed_when: failed_services != []
+

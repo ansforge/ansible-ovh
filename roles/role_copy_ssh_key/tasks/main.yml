@@ -1,0 +1,21 @@
+---
+# Rôle : copy_ssh_key
+# Objectif : déployer la clé publique SSH du contrôleur Ansible sur les cibles
+
+- name: Vérifier la présence de la clé publique locale
+  ansible.builtin.stat:
+    path: "{{ ssh_pub_key_path }}"
+  register: pubkey
+  delegate_to: localhost
+  failed_when: not pubkey.stat.exists
+
+- name: Lire le contenu de la clé publique
+  ansible.builtin.slurp:
+    src: "{{ ssh_pub_key_path }}"
+  register: pubkey_content
+  delegate_to: localhost
+
+- name: Installer la clé publique sur l’hôte distant
+  ansible.posix.authorized_key:
+    user: "{{ ssh_target_user }}"
+    key: "{{ pubkey_content.content | b64decode }}"

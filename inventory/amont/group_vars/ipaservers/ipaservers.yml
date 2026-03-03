@@ -1,0 +1,20 @@
+# Parametres DNS
+ipaserver_domain: ans.local
+ipaserver_realm: ANS.LOCAL
+ipaserver_setup_dns: yes
+ipaserver_auto_reverse: yes
+ipaserver_forwarders: ['213.186.33.99']
+
+# Configuration Host & IP
+ipa_server_fqdn: infra-amont-dns01.ans.local
+ipa_server_ip: 10.25.50.105
+ 
+# Réseaux pour les zones DNS inverses
+ipa_reverse_zones:
+  - 10.25.50.0/24
+  - 172.16.11.0/24
+  - 172.16.21.0/24
+  - 172.16.31.0/24
+  - 172.16.41.0/24
+  - 172.16.81.0/24
+

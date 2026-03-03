@@ -1,0 +1,122 @@
+---
+- name: Test host
+  hosts: "{{ ipa_test_host | default('ipaserver') }}"
+  become: yes
+  gather_facts: yes
+
+  tasks:
+  - name: Include FreeIPA facts.
+    ansible.builtin.include_tasks: ../env_freeipa_facts.yml
+
+  - name: Get Domain from server name
+    ansible.builtin.set_fact:
+      ipaserver_domain: "{{ ansible_facts['fqdn'].split('.')[1:] | join('.') }}"
+    when: ipaserver_domain is not defined
+
+  - name: Set host1_fqdn .. host6_fqdn
+    ansible.builtin.set_fact:
+      host1_fqdn: "{{ 'host1.' + ipaserver_domain }}"
+
+  # CLEANUP TEST ITEMS
+
+  - name: Ensure host "{{ host1_fqdn }}" absent
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      state: absent
+
+  # CREATE TEST ITEMS
+
+  - name: Ensure host "{{ host1_fqdn }}" present
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      force: yes
+    register: result
+    failed_when: not result.changed or result.failed
+
+  # TESTS
+
+  - name: Ensure host "{{ host1_fqdn }}" present with auth_ind otp and radius
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind:
+      - otp
+      - radius
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Ensure host "{{ host1_fqdn }}" present with auth_ind otp and radius, again
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind:
+      - otp
+      - radius
+    register: result
+    failed_when: result.changed or result.failed
+
+  - name: Ensure host "{{ host1_fqdn }}" present with auth_ind passkey
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind:
+      - passkey
+    register: result
+    when: passkey_is_supported
+    failed_when: not result.changed or result.failed
+
+  - name: Ensure host "{{ host1_fqdn }}" present with auth_ind passkey, again
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind:
+      - passkey
+    register: result
+    when: passkey_is_supported
+    failed_when: result.changed or result.failed
+
+  - name: Check if correct message is given if passkey is not supported.
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind:
+      - passkey
+    register: result
+    when: not passkey_is_supported
+    failed_when: not result.failed or "'passkey' is not supported" not in result.msg
+
+  - name: Ensure host "{{ host1_fqdn }}" present with empty auth_ind
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind: ""
+    register: result
+    failed_when: not result.changed or result.failed
+
+  - name: Ensure host "{{ host1_fqdn }}" present with empty auth_ind, again
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      auth_ind: ""
+    register: result
+    failed_when: result.changed or result.failed
+
+  # CLEANUP TEST ITEMS
+
+  - name: Ensure host "{{ host1_fqdn }}" absent
+    freeipa.ansible_freeipa.ipahost:
+      ipaadmin_password: SomeADMINpassword
+      ipaapi_context: "{{ ipa_context | default(omit) }}"
+      name: "{{ host1_fqdn }}"
+      state: absent

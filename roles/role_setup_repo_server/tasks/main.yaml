@@ -1,0 +1,93 @@
+
+---
+- name: Installer les outils nécessaires (dnf-utils, createrepo, httpd, selinux utils)
+  dnf:
+    name:
+      - dnf-utils
+      - createrepo
+      - httpd
+      - policycoreutils-python-utils
+    state: present
+
+- name: Préparer le système de fichiers sur le disque de stockage
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ repo_disk_device }}"
+
+- name: Créer le répertoire parent pour le montage
+  file:
+    path: "{{ repo_mount_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Monter la partition de données
+  mount:
+    path: "{{ repo_mount_path }}"
+    src: "{{ repo_disk_device }}"
+    fstype: ext4
+    state: mounted
+    opts: defaults
+
+- name: Créer les répertoires pour les dépôts (baseos, appstream, etc.)
+  file:
+    path: "{{ repo_base_path }}/{{ item }}"
+    state: directory
+    owner: apache
+    group: apache
+    mode: "0755"
+  loop: "{{ alma_repos }}"
+
+- name: Configurer SELinux pour autoriser Apache sur le dossier repos
+  sefcontext:
+    target: "{{ repo_base_path }}(/.*)?"
+    setype: httpd_sys_content_t
+    state: present
+
+- name: Appliquer le contexte SELinux (restorecon)
+  command: restorecon -irv {{ repo_base_path }}
+  register: restorecon_result
+  changed_when: '"relabeled" in restorecon_result.stdout'
+
+- name: Configurer Apache (VirtualHost)
+  template:
+    src: repo.conf.j2
+    dest: /etc/httpd/conf.d/repo.conf
+  notify: restart httpd
+
+- name: S'assurer que firewalld est démarré
+  systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ouvrir les ports Firewall (http/https)
+  firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: [http, https]
+
+- name: Activer et démarrer Apache
+  systemd:
+    name: httpd
+    enabled: true
+    state: started
+
+- name: Déployer le script de synchronisation des dépôts
+  template:
+    src: sync_repos.sh.j2
+    dest: /usr/local/bin/sync_repos.sh
+    mode: "0755"
+
+- name: Lancer la synchronisation initiale (Peut prendre du temps)
+  command: /usr/local/bin/sync_repos.sh
+  args:
+    creates: "{{ repo_base_path }}/baseos/repodata"
+
+- name: Planifier la synchronisation Cron (02h00)
+  cron:
+    name: "Sync AlmaLinux Repos"
+    minute: "0"
+    hour: "2"
+    job: "/usr/local/bin/sync_repos.sh"

@@ -1,0 +1,5 @@
+# defaults file for ipaclient
+# vars/default.yml
+---
+ipaclient_packages: [ "ipa-client", "python3-libselinux" ]
+ipaclient_packages_dot: [ "ipa-client-encrypted-dns" ]

@@ -1,0 +1,132 @@
+---
+- name: Apply an update on all packages and on kernel
+  hosts: "{{ HOSTS }}"
+
+  vars:
+    # working local directories
+    update_results_dir: "{{ playbook_dir }}/update_results"
+    reports_dir: "{{ playbook_dir }}/reports"
+
+    date: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+    yum_name: "*"
+    yum_state:  latest
+    yum_enablerepo: ""
+    yum_disablerepo: "*"
+    yum_exclude: ""
+
+    log_owner: "{{ ansible_user }}"  # owner of the log files on localhost (Ansible Core Engine). group=owner
+
+    alma_veresion: "{{ ansible_distribution_major_version }}"
+
+    alma9_repositories:
+      - alma9-local-baseos
+      - alma9-local-appstream
+      - alma9-local-extras
+
+  pre_tasks:
+    - name: Create all needed directories on Ansible controller
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ update_results_dir }}"
+        - "{{ reports_dir }}"
+      delegate_to: localhost
+
+  tasks:
+    - name: Set repositories based on ALMA version
+      ansible.builtin.set_fact:
+        yum_enablerepo: "{{ lookup('vars', 'alma' + alma_veresion + '_repositories') }}"
+      tags: update_only
+
+    - name: Update all packages with yum
+      ansible.builtin.yum:
+        name: "{{ yum_name }}"
+        state: "{{ yum_state }}"
+        exclude: "{{ yum_exclude }}"
+        disablerepo: "{{ yum_disablerepo }}"
+        enablerepo: "{{ yum_enablerepo }}"
+      register: yum_result
+      become: true
+      tags: update_only
+
+    - block:
+      - name: Log the yum result on localhost
+        ansible.builtin.copy:
+          content: "{{ yum_result }}"
+          dest: "{{ update_results_dir }}/{{ inventory_hostname }}_{{ date }}"
+          owner: "{{ log_owner }}"
+          group: "{{ log_owner }}"
+        delegate_to: localhost
+
+      - name: Install yum-utils package providing needs-restarting tool
+        ansible.builtin.yum:
+          name: yum-utils
+          state: latest
+          disablerepo: "{{ yum_disablerepo }}"
+          enablerepo: "{{ yum_enablerepo }}"
+
+      - name: Check to see if a reboot is needed
+        ansible.builtin.command: needs-restarting -r
+        register: needed_reboot_result
+        failed_when: false
+        changed_when: false
+
+      - debug: var=needed_reboot_result
+        tags: update_only
+
+      - name: Create custom fact directory
+        ansible.builtin.file:
+          path: "/etc/ansible/facts.d"
+          state: directory
+          mode: 0755
+
+      - name: Insert the reboot required information in custom fact
+        ansible.builtin.copy:
+          content: |
+            {
+              "reboot_required": "{{ 'Y' if needed_reboot_result.rc == 1 else 'N' }}"
+            }
+          dest: "/etc/ansible/facts.d/patching_mgt.fact"
+          mode: 0644
+
+      when: yum_result.changed and yum_result.changed is defined
+      tags: update_only
+      become: true
+
+    - name: Reboot if needed
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when: (needed_reboot_result | default({})).get('rc') == 1
+      become: true
+      tags: reboot
+
+    - block:
+      - name: Refresh facts
+        ansible.builtin.setup:
+
+      - name: Get the last boot date
+        ansible.builtin.shell: who -b | awk '{ print $3,$4}'
+        register: last_boot_result
+        changed_when: false
+        become: true
+
+      - name: Get last yum full update
+        ansible.builtin.shell: yum history | grep -v -e 'Altered' -e 'Modifi' -e '\---' | grep '|' | head -1 | awk -F '|' '{ print $3" "$5}' | awk '{ print $1" "$2","$3 }'
+        register: yum_history
+        changed_when: false
+        become: true
+
+      - ansible.builtin.debug: var=yum_history.stdout
+
+      - name: Store the last yum full update information in last_patch_{{ inventory_hostname }}.txt
+        ansible.builtin.lineinfile:
+          dest: "reports/last_patch_{{ inventory_hostname }}.txt"
+          line: "{{ yum_history.stdout }},{{ ansible_local.patching_mgt.reboot_required}},{{ last_boot_result.stdout }}"
+          insertafter: EOF
+          create: true
+        delegate_to: localhost
+
+      tags: yum_history_only
+
+

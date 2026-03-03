@@ -1,0 +1,6 @@
+---
+- name: Configurer resolv.conf
+  hosts: "{{ HOSTS }}"
+  become: yes
+  roles:
+    - role_resolvconf

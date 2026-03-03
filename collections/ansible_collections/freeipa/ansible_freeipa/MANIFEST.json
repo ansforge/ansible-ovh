@@ -1,0 +1,38 @@
+{
+ "collection_info": {
+  "namespace": "freeipa",
+  "name": "ansible_freeipa",
+  "version": "1.16.0",
+  "authors": [
+   "Thomas Woerner <twoerner@redhat.com>"
+  ],
+  "readme": "README.md",
+  "tags": [
+   "linux",
+   "system",
+   "identity",
+   "ipa",
+   "freeipa",
+   "cluster",
+   "collection"
+  ],
+  "description": "Ansible roles and modules for FreeIPA",
+  "license": [
+   "GPL-3.0-or-later"
+  ],
+  "license_file": null,
+  "dependencies": {},
+  "repository": "https://github.com/freeipa/ansible-freeipa",
+  "documentation": "https://github.com/freeipa/ansible-freeipa/blob/master/README.md",
+  "homepage": "https://github.com/freeipa/ansible-freeipa",
+  "issues": "https://github.com/freeipa/ansible-freeipa/issues"
+ },
+ "file_manifest_file": {
+  "name": "FILES.json",
+  "ftype": "file",
+  "chksum_type": "sha256",
+  "chksum_sha256": "e0f61c74b8e4134fb2499fbf1baaac8d830e90e0350e388940b212166bf7a39f",
+  "format": 1
+ },
+ "format": 1
+}

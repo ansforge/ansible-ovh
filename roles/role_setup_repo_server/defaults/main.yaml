@@ -1,0 +1,17 @@
+
+---
+repo_server_ip: 10.25.50.103
+repo_base_path: /var/www/html/repos
+repo_mount_path: /var/www/html/repos
+repo_disk_device: /dev/sdb
+
+# Liste des dépôts à synchroniser
+alma_repos:
+  - baseos
+  - appstream
+  - extras
+
+# Réseaux autorisés (VLANs)
+allowed_networks:
+  - 10.25.50.0/24
+  - 172.16.41.0/24

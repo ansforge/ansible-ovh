@@ -1,0 +1,61 @@
+- name: Play to add host in inventory
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    inv_lockfile_name: "{{ inventory_dir }}/lock/inv_update.lock"
+
+  tasks:
+    - ansible.builtin.debug:
+        msg: "About to add host {{ vm_name }} to inventory {{ inventory_file }}"
+
+    - block:
+      - name: Lock the inventory to add host or wait until lockfile has been released
+        manage_lockfile:
+        args:
+          lockfile_name: "{{ inv_lockfile_name }}"
+
+      rescue:
+        - ansible.builtin.fail:
+            msg: "Cannot udpate inventory to add host {{ vm_name }}"
+
+    - block:
+      - name: Add host in a temporary inventory to get facts
+        ansible.builtin.add_host:
+          hostname: "{{ vm_name }}"
+          ansible_host: "{{ vm_ip }}"
+          #groups: "dc_{{ vm_dc | lower }}"
+  
+      - name: Get facts to get the Alma version
+        ansible.builtin.setup:
+        delegate_to: "{{ vm_name }}"
+        ignore_unreachable: true
+
+      - ansible.builtin.assert:
+          that:
+            - ansible_distribution_major_version is defined
+          fail_msg: "Unable to identify Alma release for {{ vm_name }}"
+  
+      - name: Add host in inventory file
+        manage_inifile:
+        args:
+          operation: add_host
+          inifile_name: "{{ inventory_file }}"
+          vm_name: "{{ vm_name }}"
+          group_list:
+            - 'alma{{ ansible_distribution_major_version }}'
+            - '{{ vm_env | lower }}'
+            - cmf
+
+      always:
+        - name: Release the lock file {{ inv_lockfile_name }}
+          ansible.builtin.file:
+            path: "{{ inv_lockfile_name }}"
+            state: absent
+
+    - name: Create the hostvars file for the new host
+      ansible.builtin.copy:
+        dest: "{{ inventory_dir }}/host_vars/{{ vm_name }}.yml"
+        content: "ansible_host: {{ vm_ip }}\nfqdn: {{ ansible_fqdn }}\n"
+        mode: 0644
+

@@ -1,0 +1,3 @@
+---
+ansible_version_min: "2.14"
+terraform_repo_url: https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo

@@ -1,0 +1,4 @@
+openscap_remediation_profile: xccdf_org.ssgproject.content_profile_cis
+openscap_remediation_path: '/var/log/openscap/remediation/'
+openscap_remediation_results: "{{ openscap_remediation_path }}/results-remediation-{{ openscap_remediation_profile | regex_replace('^xccdf_org\\.ssgproject\\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.xml"
+openscap_remediation_report: "{{ openscap_remediation_path }}/report-remediation-{{ openscap_remediation_profile | regex_replace('^xccdf_org\\.ssgproject\\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.html"

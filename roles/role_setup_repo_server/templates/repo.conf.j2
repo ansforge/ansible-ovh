@@ -1,0 +1,15 @@
+# Configuration du repository local AlmaLinux
+Alias /{{ repo_http_alias }} {{ repo_base_path }}
+
+<Directory {{ repo_base_path }}>
+    # Permet de lister les fichiers (important pour DNF/YUM)
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    
+    # Restriction d'accès aux VLANs autorisés
+    <RequireAny>
+        {% for net in allowednets %}
+        Require ip {{ net }}
+        {% endfor %}
+    </RequireAny>
+</Directory>

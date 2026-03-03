@@ -1,0 +1,4 @@
+{% for ipaserver in groups['ipaservers'] %}
+nameserver {{ hostvars[ipaserver]['ansible_host'] }}
+{% endfor %}
+search {{ main_domain }}

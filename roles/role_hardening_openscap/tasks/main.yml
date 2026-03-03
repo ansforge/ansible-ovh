@@ -1,0 +1,32 @@
+---
+# tasks file for hardening-openscap
+- name: Ensure reports directory exists
+  ansible.builtin.file:
+    path: "{{ openscap_log_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Execute OpenSCAP scan and generate HTML report
+  ansible.builtin.debug:
+    msg: "ATTENTION : L'exécution du scan suivant peut être longue (entre 2 et 10 minutes par profil selon les ressources du serveur)."
+
+- name: Execute OpenSCAP scan and generate HTML report
+  ansible.builtin.command:
+    cmd: >
+      oscap xccdf eval
+      --profile {{ item }}
+      --results {{ openscap_log_path }}/results-{{ item | regex_replace('^xccdf_org\.ssgproject\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.xml
+      --report {{ openscap_log_path }}/report-{{ item | regex_replace('^xccdf_org\.ssgproject\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.html
+      --fetch-remote-resources
+      /usr/share/xml/scap/ssg/content/ssg-almalinux{{ ansible_distribution_major_version | default('9') }}-ds.xml
+  loop: "{{ openscap_profiles }}"
+  register: oscap_scan
+  failed_when: oscap_scan.rc not in [0, 2] # 0 = Compliant, 2 = Non-compliant but command succeeded
+  changed_when: true
+
+- name: Fetch OpenSCAP HTML report to local machine
+  ansible.builtin.fetch:
+    src: "{{ openscap_log_path }}/report-{{ item | regex_replace('^xccdf_org\\.ssgproject\\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.html"
+    dest: "{{ playbook_dir }}/../../reports/{{ inventory_hostname }}/"
+    flat: yes
+  loop: "{{ openscap_profiles }}"

@@ -1,0 +1,3 @@
+ansible_connection: local
+ansible_host: 10.25.50.106
+fqdn: infra-amont-tfansible01.ans.local

@@ -1,0 +1,11 @@
+[Unit]
+Description=Fix /etc/hosts and with local DNS also /etc/resolv.conf
+
+[Service]
+Type=oneshot
+ExecStart=/root/fixnet.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=container-ipa.target

@@ -1,0 +1,106 @@
+---
+- name: Test group idoverrideuser
+  hosts: ipaserver
+  become: false
+  gather_facts: false
+  module_defaults:
+    freeipa.ansible_freeipa.ipagroup:
+      ipaadmin_password: SomeADMINpassword
+    freeipa.ansible_freeipa.ipaidoverrideuser:
+      ipaadmin_password: SomeADMINpassword
+
+  vars:
+    ad_user: "{{ test_ad_user | default('AD\\aduser') }}"
+    alt_user: "{{ test_alt_user | default('aduser@ad.ipa.test') }}"
+
+  tasks:
+    - name: Include tasks ../env_freeipa_facts.yml
+      ansible.builtin.include_tasks: ../env_freeipa_facts.yml
+
+    - name: Execute tests if ipa_verison >= 4.8.7 and trust test environment is supported
+      when: ipa_version is version("4.8.7", ">=") and trust_test_is_supported | default(false)
+      block:
+      - name: Ensure test idoverrideuser is present
+        freeipa.ansible_freeipa.ipaidoverrideuser:
+          idview: "Default Trust View"
+          anchor: "{{ ad_user }}"
+        register: result
+        failed_when: result.failed and "no modifications to be performed" not in result.msg
+
+      - name: Ensure test groups are absent
+        freeipa.ansible_freeipa.ipagroup:
+          name:
+            - idovergroup
+          state: absent
+
+      - name: Ensure group with idoverrideuser is present.
+        freeipa.ansible_freeipa.ipagroup:
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+        register: result
+        failed_when: result.failed or not result.changed
+
+      - name: Ensure group with idoverrideuser is present, again.
+        freeipa.ansible_freeipa.ipagroup:
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+        register: result
+        failed_when: result.failed or result.changed
+
+      - name: Ensure group with alternative idoverrideuser is present.
+        freeipa.ansible_freeipa.ipagroup:
+          name: idovergroup
+          idoverrideuser: "{{ alt_user }}"
+        register: result
+        failed_when: result.failed or result.changed
+
+      - name: Ensure idoverrideuser member is absent.
+        freeipa.ansible_freeipa.ipagroup:
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+          action: member
+          state: absent
+        register: result
+        failed_when: result.failed or not result.changed
+
+      - name: Ensure idoverrideuser member is absent, again.
+        freeipa.ansible_freeipa.ipagroup:
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+          action: member
+          state: absent
+        register: result
+        failed_when: result.failed or result.changed
+
+      - name: Ensure idoverrideuser member is present.
+        freeipa.ansible_freeipa.ipagroup:
+          ipaadmin_password: SomeADMINpassword
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+          action: member
+        register: result
+        failed_when: result.failed or not result.changed
+
+      - name: Ensure idoverrideuser member is present, again.
+        freeipa.ansible_freeipa.ipagroup:
+          ipaadmin_password: SomeADMINpassword
+          name: idovergroup
+          idoverrideuser: "{{ ad_user }}"
+          action: member
+        register: result
+        failed_when: result.failed or result.changed
+
+      always:
+      - name: Remove testing groups.
+        freeipa.ansible_freeipa.ipagroup:
+          ipaadmin_password: SomeADMINpassword
+          name:
+          - idovergroup
+          state: absent
+
+      - name: Remove idoverrideuser.
+        freeipa.ansible_freeipa.ipaidoverrideuser:
+          idview: "Default Trust View"
+          anchor: "{{ ad_user }}"
+          continue: true
+          state: absent

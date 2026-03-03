@@ -1,0 +1,6 @@
+---
+- name: Configurer serveur Terraform Controller
+  hosts: tfansible
+  become: yes
+  roles:
+    - role_tfansible

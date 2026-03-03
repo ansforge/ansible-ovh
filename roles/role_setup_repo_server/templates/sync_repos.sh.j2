@@ -1,0 +1,8 @@
+#!/bin/bash
+{% for repo in alma_repos %}
+# Synchronisation du dépôt {{ repo }}
+dnf reposync --repoid={{ repo }} -p {{ repo_base_path }}/ --download-metadata --delete
+
+# Mise à jour des métadonnées (important pour que les clients voient les paquets)
+createrepo --update {{ repo_base_path }}/{{ repo }}
+{% endfor %}

@@ -1,0 +1,5 @@
+---
+repo_server_ip: 10.25.50.103
+repo_url: http://{{ repo_server_ip }}/repos
+gpg_key_url: https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux
+local_gpg_key_path: /etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux

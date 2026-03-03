@@ -1,0 +1,20 @@
+- name: Enroll a host in IDM
+  hosts: "{{ HOSTS }}"
+  gather_facts: yes
+
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+
+  tasks:
+    - name: "Call role_ipa to apply ipa operation enroll_ipaclient"
+      ansible.builtin.include_role:
+        name: "role_ipa"
+        tasks_from: main.yml
+      vars:
+        ipa_operation: enroll_ipaclient
+        ipa_admin_user: "admin"
+        ipa_admin_password: "{{ vault_ipaadmin_password }}"
+        ipa_client_fqdn: "{{ ansible_fqdn }}"
+        ipa_client_domain: "{{ main_domain }}"
+        ipa_client_ip: "{{ ansible_host }}"
+

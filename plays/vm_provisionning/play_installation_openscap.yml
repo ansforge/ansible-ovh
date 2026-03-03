@@ -1,0 +1,6 @@
+---
+- name: Install OpenSCAP on AlmaLinux
+  hosts: "{{ HOSTS }}"
+  become: true
+  roles:
+    - role_installation_openscap

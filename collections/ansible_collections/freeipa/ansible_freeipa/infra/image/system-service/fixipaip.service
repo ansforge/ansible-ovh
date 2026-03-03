@@ -1,0 +1,13 @@
+[Unit]
+Description=Fix IPA server IP in IPA Server
+After=ipa.service
+PartOf=ipa.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/fixipaip.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=ipa.service

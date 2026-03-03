@@ -1,0 +1,11 @@
+---
+- name: Sysaccount example
+  hosts: ipaserver
+  become: false
+
+  tasks:
+  - name: Ensure sysaccount my-app is privileged
+    freeipa.ansible_freeipa.ipasysaccount:
+      ipaadmin_password: SomeADMINpassword
+      name: my-app
+      privileged: true

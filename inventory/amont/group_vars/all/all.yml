@@ -1,0 +1,19 @@
+---
+main_domain: ans.local
+repo_server_fqdn: "infra-amont-repo01.{{ main_domain }}"
+
+ntpservers:
+  - ntp.ovh.net
+
+allowednets:
+  - '10.25.50.0/24'
+  - '172.16.41.0/24'
+
+repo_server_ip: 10.25.50.103
+
+alma_repos:
+  - baseos
+  - appstream
+  - extras
+
+

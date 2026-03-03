@@ -1,0 +1,15 @@
+repo_http_alias: alma9-repos
+repo_base_path: "/var/www/html/{{ repo_http_alias }}"
+
+repositories:
+  - name: alma9-local-baseos
+    description: "AlmaLinux 9 - Local Baseos"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+  - name: alma9-local-appstream
+    description: "AlmaLinux 9 - Local AppStream"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+  - name: alma9-local-extras
+    description: "AlmaLinux 9 - Local Extras"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+
+gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"

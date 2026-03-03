@@ -1,0 +1,25 @@
+---
+- name: Set FQDN hostname
+  ansible.builtin.hostname:
+    name: "{{ ipa_server_fqdn }}"
+
+- name: Configure /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ipa_server_ip }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn | split('.') | first }}"
+    state: present
+
+- name: Install FreeIPA Server
+  ansible.builtin.include_role:
+    name: freeipa.ansible_freeipa.ipaserver
+  vars:
+    ipaadmin_password: "{{ vault_ipaadmin_password }}"
+    ipadm_password: "{{ vault_ipadm_password }}"
+
+- name: Create Reverse Zones
+  freeipa.ansible_freeipa.ipadnszone:
+    ipaadmin_password: "{{ vault_ipaadmin_password }}"
+    name: "{{ item | ipaddr('revdns') | regex_replace('^0\\.', '') }}"
+    state: present
+  loop: "{{ ipa_reverse_zones }}"
+

@@ -1,0 +1,28 @@
+# transfere dans les group_vars ipaserver
+#---
+## Configuration Host & IP
+#ipa_server_fqdn: infra-amont-dns01.ans.local
+#ipa_server_ip: 10.25.50.105
+#
+## Réseaux pour les zones DNS inverses
+#ipa_reverse_zones:
+#  - 10.25.50.0/24
+#  - 172.16.11.0/24
+#  - 172.16.21.0/24
+#  - 172.16.31.0/24
+#  - 172.16.41.0/24
+#  - 172.16.81.0/24
+#
+## Groupes à créer
+#ipa_groups:
+#  - name: gr-infra-admin-preprod
+#
+## Utilisateurs à créer (avec leurs groupes)
+#ipa_users:
+#  - name: schaabane
+#    first: Safouane
+#    last: CHAABANE
+#    email: safouane.chaabane@atos.net
+#    password: "{{ vault_schaabane_password }}"
+#    groups:
+#      - gr-infra-admin-preprod

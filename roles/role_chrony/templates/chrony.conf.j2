@@ -1,0 +1,22 @@
+# Fichier généré par Ansible
+driftfile /var/lib/chrony/drift
+makestep 1.0 3
+rtcsync
+
+# Si la machine est le serveur DNS/IPA, elle regarde dehors (NTP OVH)
+{% if inventory_hostname in groups['ipaservers'] %}
+{% for ntpserver in ntpservers %}
+server {{ ntpserver }} iburst
+{% endfor %}
+{% else %}
+# Sinon, elle se synchronise sur le serveur DNS/IPA local
+{% for ipaserver in groups['ipaservers'] %}
+server {{ ipaserver }}.{{ main_domain }} iburst
+{% endfor %}
+{% endif %}
+
+{% for allowednet in allowednets %}
+allow {{ allowednet }}
+{% endfor %}
+
+logdir /var/log/chrony
