@@ -10,6 +10,12 @@ alma_repos:
   - baseos
   - appstream
   - extras
+# liste des version d os a synchroniser
+alma_releases:
+  - "10"
+# liste des alias/repertoires correspondants
+repo_http_alias_list:
+ - alma10-repos
 
 # Réseaux autorisés (VLANs)
 allowed_networks:

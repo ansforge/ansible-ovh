@@ -28,14 +28,32 @@
     state: mounted
     opts: defaults
 
-- name: Créer les répertoires pour les dépôts (baseos, appstream, etc.)
+- name: Créer les répertoires pour chacune des versions d alma
   file:
     path: "{{ repo_base_path }}/{{ item }}"
     state: directory
     owner: apache
     group: apache
     mode: "0755"
-  loop: "{{ alma_repos }}"
+  loop: "{{ repo_http_alias_list }}"
+      
+- name: Créer les sous-répertoires pour les dépôts (baseos, appstream, etc.)
+  file:
+    path: "{{ repo_base_path }}/{{ item.0 }}/{{ item.1 }}"
+    state: directory
+    owner: apache
+    group: apache
+    mode: "0755"
+  loop: "{{ repo_http_alias_list | product(alma_repos) }}"
+
+#- name: Créer les répertoires pour les dépôts (baseos, appstream, etc.)
+#  file:
+#    path: "{{ repo_base_path }}/{{ item }}"
+#    state: directory
+#    owner: apache
+#    group: apache
+#    mode: "0755"
+#  loop: "{{ alma_repos }}"
 
 - name: Configurer SELinux pour autoriser Apache sur le dossier repos
   sefcontext:

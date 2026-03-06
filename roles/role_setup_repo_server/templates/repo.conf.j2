@@ -1,7 +1,8 @@
 # Configuration du repository local AlmaLinux
-Alias /{{ repo_http_alias }} {{ repo_base_path }}
+{% for alias in repo_http_alias_list %}
+Alias /{{ alias }} {{ repo_base_path }}/{{ alias }}
 
-<Directory {{ repo_base_path }}>
+<Directory {{ repo_base_path }}/{{ alias }}>
     # Permet de lister les fichiers (important pour DNF/YUM)
     Options Indexes FollowSymLinks
     AllowOverride None
@@ -13,3 +14,4 @@ Alias /{{ repo_http_alias }} {{ repo_base_path }}
         {% endfor %}
     </RequireAny>
 </Directory>
+{% endfor %}

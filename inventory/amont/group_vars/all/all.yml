@@ -16,4 +16,12 @@ alma_repos:
   - appstream
   - extras
 
+repo_base_path: "/var/www/html/repos"
 
+alma_releases:
+ - "9"
+ - "10"
+# liste des alias http pour le serveur repo packages alma, dois correspondre au variables repo_http_alias dans les inventory des alma
+repo_http_alias_list:
+ - "alma9-repos"
+ - "alma10-repos"

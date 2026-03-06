@@ -1,5 +1,4 @@
 repo_http_alias: alma9-repos
-repo_base_path: "/var/www/html/{{ repo_http_alias }}"
 
 repositories:
   - name: alma9-local-baseos
