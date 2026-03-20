@@ -1,0 +1,58 @@
+---
+- name: Figer IP et MAC actuelles en configuration statique
+  hosts: "{{ HOSTS }}"
+  become: yes
+  gather_facts: yes
+
+  vars:
+    iface_name: "{{ ansible_default_ipv4.interface }}"
+
+  tasks:
+    - name: Récupérer les infos IP et MAC actuelles
+      ansible.builtin.set_fact:
+        current_ip: "{{ ansible_default_ipv4.address }}"
+        current_prefix: "{{ ansible_default_ipv4.prefix }}"
+        current_gw: "{{ ansible_default_ipv4.gateway | default('') }}"
+        current_dns1: "{{ (ansible_dns.nameservers | default([])) | first | default('') }}"
+        current_mac: >-
+          {{ ansible_default_ipv4.macaddress
+             | default(ansible_facts['interfaces'][iface_name]['macaddress'])
+             | default('') }}
+
+    - name: Vérifier qu'on a bien une IP
+      ansible.builtin.fail:
+        msg: "Impossible de déterminer l'IP actuelle."
+      when: current_ip | length == 0
+
+    - name: Créer/mettre à jour la conf réseau en statique
+      ansible.builtin.copy:
+        dest: "/etc/sysconfig/network-scripts/ifcfg-test"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          TYPE=Ethernet
+          DEVICE={{ iface_name }}
+          NAME={{ iface_name }}
+          ONBOOT=yes
+          BOOTPROTO=none
+          IPADDR={{ current_ip }}
+          PREFIX={{ current_prefix }}
+          {% if current_gw != '' %}
+          GATEWAY={{ current_gw }}
+          {% endif %}
+          {% if current_dns1 != '' %}
+          DNS1={{ current_dns1 }}
+          {% endif %}
+          {% if current_mac != '' %}
+          HWADDR={{ current_mac }}
+          {% endif %}
+          NM_CONTROLLED=yes
+
+    #- name: Redémarrer NetworkManager
+    #  ansible.builtin.service:
+    #    name: NetworkManager
+    #    state: restarted
+    #  when: ansible_facts.services is not defined or
+    #        ('NetworkManager.service' in (ansible_facts.services | default({})))
+
