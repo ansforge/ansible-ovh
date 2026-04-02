@@ -1,4 +1,11 @@
 ---
+- name: Ajouter l'IP du serveur repo dans /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^{{ repo_server_ip }}"
+    line: "{{ repo_server_ip }} {{ hostvars[groups['repo'][0]]['fqdn'] }}"
+    state: present
+
 - name: Créer un dossier de backup pour les anciens dépôts
   ansible.builtin.file:
     path: /etc/yum.repos.d/backup

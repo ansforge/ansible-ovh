@@ -1,0 +1,7 @@
+# Fichier whitelist pour Squid
+# Un domaine par ligne
+# Les sous-domaines sont automatiquement inclus
+
+google.fr
+youtube.com
+github.com

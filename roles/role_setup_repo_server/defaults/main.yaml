@@ -1,9 +1,11 @@
 
 ---
-repo_server_ip: 10.25.50.103
 repo_base_path: /var/www/html/repos
 repo_mount_path: /var/www/html/repos
 repo_disk_device: /dev/sdb
+
+proxy_ip: "{{ hostvars[groups['proxy'][0]]['ansible_host'] }}"
+proxy_port: 3128
 
 # Liste des dépôts à synchroniser
 alma_repos:

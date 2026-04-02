@@ -6,15 +6,13 @@ ipaserver_auto_reverse: yes
 ipaserver_forwarders: ['213.186.33.99']
 
 # Configuration Host & IP
-ipa_server_fqdn: infra-amont-dns01.ans.local
-ipa_server_ip: 10.25.50.105
+ipa_server_fqdn: infra-prod-freeipa.ans.local
+ipa_server_ip: 10.11.90.13
  
 # Réseaux pour les zones DNS inverses
 ipa_reverse_zones:
-  - 10.25.50.0/24
-  - 172.16.11.0/24
-  - 172.16.21.0/24
-  - 172.16.31.0/24
-  - 172.16.41.0/24
-  - 172.16.81.0/24
+  - 10.11.90.0/24
+  - 10.11.52.0/24
+  - 10.11.70.0/24
+  - 10.11.30.0/24
 

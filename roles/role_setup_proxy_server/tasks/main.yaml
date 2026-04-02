@@ -1,0 +1,72 @@
+- name: Installer Squid
+  dnf:
+    name: squid
+    state: present
+    update_cache: yes
+  tags: install
+
+- name: Créer le fichier whitelist vide
+  file:
+    path: "{{ squid_whitelist_file }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  tags: install
+
+- name: Déployer la configuration Squid
+  template:
+    src: templates/squid.conf.j2
+    dest: "{{ squid_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  notify: Redémarrer Squid
+  tags: install
+
+- name: Vérifier la configuration Squid
+  command: squid -k parse
+  changed_when: false
+  tags: install
+
+- name: Activer et démarrer le service Squid
+  systemd:
+    name: squid
+    enabled: yes
+    state: started
+  tags: install
+
+- name: Autoriser le port Squid dans firewalld
+  firewalld:
+    port: "{{ squid_http_port }}/tcp"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  ignore_errors: yes
+  tags: install
+
+- name: Vérifier si SELinux est activé
+  command: getenforce
+  register: selinux_status
+  changed_when: false
+  failed_when: false
+  tags: install
+
+- name: Configurer SELinux pour Squid (si activé)
+  seboolean:
+    name: squid_connect_any
+    state: yes
+    persistent: yes
+  when: selinux_status.stdout == 'Enforcing'
+  tags: install
+
+- name: Afficher les informations du proxy
+  debug:
+    msg:
+      - "Squid proxy installé avec succès"
+      - "Proxy HTTP: {{ ansible_default_ipv4.address }}:{{ squid_http_port }}"
+      - "Fichier whitelist: {{ squid_whitelist_file }}"
+      - ""
+      - "La whitelist est vide. Utilisez update_whitelist.yml pour ajouter des domaines."
+  tags: install

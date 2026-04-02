@@ -23,6 +23,11 @@
       - alma9-local-appstream
       - alma9-local-extras
 
+    alma10_repositories:
+      - alma10-local-baseos
+      - alma10-local-appstream
+      - alma10-local-extras
+
   pre_tasks:
     - name: Create all needed directories on Ansible controller
       ansible.builtin.file:
@@ -119,7 +124,7 @@
 
       - ansible.builtin.debug: var=yum_history.stdout
 
-      - name: Store the last yum full update information in last_patch_{{ inventory_hostname }}.txt
+      - name: Store the last yum full update information
         ansible.builtin.lineinfile:
           dest: "reports/last_patch_{{ inventory_hostname }}.txt"
           line: "{{ yum_history.stdout }},{{ ansible_local.patching_mgt.reboot_required}},{{ last_boot_result.stdout }}"

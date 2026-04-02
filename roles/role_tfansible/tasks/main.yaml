@@ -1,7 +1,12 @@
 ---
-- name: Installer Ansible
+- name: Installer dnf-plugins-core (nécessaire pour config-manager)
   ansible.builtin.dnf:
-    name: ansible
+    name: dnf-plugins-core
+    state: present
+
+- name: Installer Ansible (ansible-core)
+  ansible.builtin.dnf:
+    name: ansible-core
     state: present
 
 - name: Ajouter dépôt HashiCorp

@@ -1,15 +1,17 @@
 ---
 main_domain: ans.local
-repo_server_fqdn: "infra-amont-repo01.{{ main_domain }}"
+repo_server_fqdn: "infra-prod-repo01.{{ main_domain }}"
 
 ntpservers:
   - ntp.ovh.net
 
 allowednets:
-  - '10.25.50.0/24'
-  - '172.16.41.0/24'
+  - '10.11.90.0/24'
+  - '10.11.52.0/24'
+  - '10.11.30.0/24'
+  - '10.11.70.0/24'
 
-repo_server_ip: 10.25.50.103
+repo_server_ip: "{{ hostvars[groups['repo'][0]]['ansible_host'] }}"
 
 alma_repos:
   - baseos

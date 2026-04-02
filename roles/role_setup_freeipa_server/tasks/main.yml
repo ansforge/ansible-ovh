@@ -1,13 +1,13 @@
 ---
-- name: Set FQDN hostname
-  ansible.builtin.hostname:
-    name: "{{ ipa_server_fqdn }}"
-
 - name: Configure /etc/hosts
   ansible.builtin.lineinfile:
     path: /etc/hosts
     line: "{{ ipa_server_ip }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn | split('.') | first }}"
     state: present
+
+- name: Set FQDN hostname
+  ansible.builtin.hostname:
+    name: "{{ ipa_server_fqdn }}"
 
 - name: Install FreeIPA Server
   ansible.builtin.include_role:

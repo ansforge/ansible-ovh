@@ -1,0 +1,4 @@
+---
+ipaclient_mkhomedir: true
+ipaclient_domain: ans.local
+ipaadmin_principal: admin

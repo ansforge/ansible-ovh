@@ -1,0 +1,3 @@
+ansible_connection: local
+ansible_host: 10.11.90.14
+fqdn: infra-prod-tfansible01.ans.local

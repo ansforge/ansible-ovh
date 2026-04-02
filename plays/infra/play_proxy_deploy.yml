@@ -1,0 +1,6 @@
+- name: Installation et configuration de Squid en mode proxy explicite
+  hosts: squid_servers
+  become: true
+  roles:
+    - role_setup_proxy_server
+

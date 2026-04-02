@@ -1,0 +1,5 @@
+- name: Mise à jour de la whitelist Squid
+  hosts: squid_servers
+  become: true
+  roles:
+    - role_setup_proxy_whitelist

@@ -1,5 +1,12 @@
-
 ---
+- name: Configurer le proxy dans dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: "^proxy"
+    line: "proxy={{ proxy_ip }}:{{ proxy_port }}"
+    insertafter: "[main]"
+    state: present
+  
 - name: Installer les outils nécessaires (dnf-utils, createrepo, httpd, selinux utils)
   dnf:
     name:
@@ -72,19 +79,19 @@
     dest: /etc/httpd/conf.d/repo.conf
   notify: restart httpd
 
-- name: S'assurer que firewalld est démarré
-  systemd:
-    name: firewalld
-    state: started
-    enabled: true
-
-- name: Ouvrir les ports Firewall (http/https)
-  firewalld:
-    service: "{{ item }}"
-    permanent: true
-    state: enabled
-    immediate: true
-  loop: [http, https]
+#- name: S'assurer que firewalld est démarré
+#  systemd:
+#    name: firewalld
+#    state: started
+#    enabled: true
+#
+#- name: Ouvrir les ports Firewall (http/https)
+#  firewalld:
+#    service: "{{ item }}"
+#    permanent: true
+#    state: enabled
+#    immediate: true
+#  loop: [http, https]
 
 - name: Activer et démarrer Apache
   systemd:

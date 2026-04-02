@@ -1,0 +1,4 @@
+- name: Recharger Squid
+  systemd:
+    name: squid
+    state: reloaded

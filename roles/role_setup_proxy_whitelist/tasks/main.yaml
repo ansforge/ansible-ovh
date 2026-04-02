@@ -1,0 +1,38 @@
+- name: Vérifier que le fichier whitelist_URL existe localement
+  stat:
+    path: "{{ role_path }}/files/whitelist_URL"
+  delegate_to: localhost
+  register: local_whitelist
+  become: false
+
+- name: Erreur si le fichier whitelist_URL n'existe pas
+  fail:
+    msg: "Le fichier whitelist_URL n'existe pas dans le répertoire courant!"
+  when: not local_whitelist.stat.exists
+
+- name: Afficher le contenu de la whitelist locale
+  command: cat "{{ role_path }}/files/whitelist_URL"
+  delegate_to: localhost
+  register: whitelist_content
+  changed_when: false
+  become: false
+
+- name: Afficher les domaines qui seront autorisés
+  debug:
+    msg: "{{ whitelist_content.stdout_lines }}"
+
+- name: Copier le fichier whitelist_URL vers le serveur
+  copy:
+    src: whitelist_URL
+    dest: "{{ squid_whitelist_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recharger Squid
+
+- name: Afficher le message de succès
+  debug:
+    msg:
+      - "Whitelist mise à jour avec succès"
+      - "Fichier: {{ squid_whitelist_file }}"
+      - "Nombre de domaines: {{ whitelist_content.stdout_lines | length }}"
