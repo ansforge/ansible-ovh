@@ -1,8 +1,8 @@
 ---
-# tasks file for remediation-openscap
+# tasks file for remediation-alma10
 - name: Ensure remediation reports directory exists
   ansible.builtin.file:
-    path: "{{ openscap_remediation_path }}" 
+    path: /var/log/openscap/remediation
     state: directory
     mode: "0755"
 
@@ -11,17 +11,11 @@
     cmd: >
       oscap xccdf eval
       --remediate
-      --profile {{ openscap_remediation_profile }}
-      --results {{ openscap_remediation_results }} 
-      --report {{ openscap_remediation_report }}
+      --profile {{ openscap_remediation_profile | default('xccdf_org.ssgproject.content_profile_cis_server_l1') }}
+      --results /var/log/openscap/remediation/results-remediation-{{ openscap_remediation_profile | regex_replace('^xccdf_org\\.ssgproject\\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.xml
+      --report /var/log/openscap/remediation/report-remediation-{{ openscap_remediation_profile | regex_replace('^xccdf_org\\.ssgproject\\.content_profile_', '') }}-{{ ansible_hostname }}-{{ ansible_date_time.date }}.html
       --fetch-remote-resources
-      /usr/share/xml/scap/ssg/content/ssg-almalinux{{ ansible_distribution_major_version | default('9') }}-ds.xml
+      /usr/share/xml/scap/ssg/content/ssg-almalinux10-ds.xml
   register: oscap_remediation
   failed_when: oscap_remediation.rc not in [0, 2] # 0 = Compliant, 2 = Non-compliant but command succeeded
   changed_when: true
-
-- name: Fetch OpenSCAP HTML remediation report to local machine
-  ansible.builtin.fetch:
-    src: "{{ openscap_remediation_report }}"
-    dest: "{{ playbook_dir }}/../../reports/{{ inventory_hostname }}/"
-    flat: yes

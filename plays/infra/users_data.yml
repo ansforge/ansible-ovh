@@ -1,0 +1,63 @@
+## Groupes à créer
+ipa_groups:
+  - name: gr-infra-admin-preprod
+  - name: gr-secu-preprod
+#
+## Utilisateurs à créer (avec leurs groupes)
+ipa_users:
+  - name: agastine
+    first: Axel
+    last: GASTINE
+    email: axel.gastine@atos.net
+    password: "{{ vault_agastine_password }}"
+    groups:
+      - gr-infra-admin-preprod
+  - name: kamelk
+    first: Kamel
+    last: KHEYAR
+    email: kamel.kheyar@atos.net
+    password: "{{ vault_kamelk_password }}"
+    groups:
+      - gr-infra-admin-preprod
+  - name: pchandavoin
+    first: Pierre-Yves
+    last: CHANDAVOINE
+    email: pierre-yves.chandavoine@atos.net
+    password: "{{ vault_pchandavoin_password }}"
+    groups:
+      - gr-infra-admin-preprod
+  - name: pferrand
+    first: Paul
+    last: FERRAND
+    email: paul.ferrand@atos.net
+    password: "{{ vault_pferrand_password }}"
+    groups:
+      - gr-secu-preprod
+  - name: schaabane
+    first: Safouane
+    last: CHAABANE
+    email: safouane.chaabane@atos.net
+    password: "{{ vault_schaabane_password }}"
+    groups:
+      - gr-infra-admin-preprod
+  - name: tabidi
+    first: Taoufik
+    last: ABIDI
+    email: taoufik.abidi@atos.net
+    password: "{{ vault_tabidi_password }}"
+    groups:
+      - gr-secu-preprod
+  - name: jsessia
+    first: Jean-Claude
+    last: SESIA
+    email: jean-claude.sesia@atos.net
+    password: "{{ vault_jsessia_password }}"
+    groups:
+      - gr-infra-admin-preprod
+  - name: gdidenot
+    first: Gregoire
+    last: DIDENOT
+    email: gregoire.didenot@atos.net
+    password: "{{ vault_gdidenot_password }}"
+    groups:
+      - gr-infra-admin-preprod

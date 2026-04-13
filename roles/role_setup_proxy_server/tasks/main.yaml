@@ -37,14 +37,6 @@
     state: started
   tags: install
 
-- name: Autoriser le port Squid dans firewalld
-  firewalld:
-    port: "{{ squid_http_port }}/tcp"
-    permanent: yes
-    state: enabled
-    immediate: yes
-  ignore_errors: yes
-  tags: install
 
 - name: Vérifier si SELinux est activé
   command: getenforce

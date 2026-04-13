@@ -4,6 +4,11 @@ repo_server_fqdn: "infra-prod-repo01.{{ main_domain }}"
 
 ntpservers:
   - ntp.ovh.net
+  - 0.europe.pool.ntp.org
+
+nameservers:
+  - '213.186.33.99'
+  - '86.54.11.100'
 
 allowednets:
   - '10.11.90.0/24'

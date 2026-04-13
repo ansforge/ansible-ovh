@@ -1,4 +1,8 @@
+{% if inventory_hostname in groups['ipaservers'] %}
+nameserver 127.0.0.1
+{% else %}
 {% for ipaserver in groups['ipaservers'] %}
 nameserver {{ hostvars[ipaserver]['ansible_host'] }}
 {% endfor %}
+{% endif %}
 search {{ main_domain }}

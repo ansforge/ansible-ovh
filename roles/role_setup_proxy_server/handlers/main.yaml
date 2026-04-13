@@ -1,5 +1,5 @@
 ---
-- name: restart squid
+- name: Redémarrer Squid
   systemd:
     name: squid
     state: restarted

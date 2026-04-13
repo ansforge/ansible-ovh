@@ -73,6 +73,22 @@
   register: restorecon_result
   changed_when: '"relabeled" in restorecon_result.stdout'
 
+
+- name: Installer mod_ssl
+  dnf:
+    name: mod_ssl
+    state: present
+
+- name: Générer un certificat auto-signé
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -nodes -days 3650
+      -newkey rsa:2048
+      -keyout /etc/pki/tls/private/repo.key
+      -out /etc/pki/tls/certs/repo.crt
+      -subj "/CN={{ repo_server_fqdn }}"
+    creates: /etc/pki/tls/certs/repo.crt
+
 - name: Configurer Apache (VirtualHost)
   template:
     src: repo.conf.j2
@@ -110,9 +126,9 @@
   args:
     creates: "{{ repo_base_path }}/baseos/repodata"
 
-- name: Planifier la synchronisation Cron (02h00)
-  cron:
-    name: "Sync AlmaLinux Repos"
-    minute: "0"
-    hour: "2"
-    job: "/usr/local/bin/sync_repos.sh"
+#- name: Planifier la synchronisation Cron (02h00)
+#  cron:
+#    name: "Sync AlmaLinux Repos"
+#    minute: "0"
+#    hour: "2"
+#    job: "/usr/local/bin/sync_repos.sh"

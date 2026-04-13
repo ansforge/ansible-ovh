@@ -3,12 +3,12 @@ repo_http_alias: alma10-repos
 repositories:
   - name: alma10-local-baseos
     description: "AlmaLinux 10 - Local Baseos"
-    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
   - name: alma10-local-appstream
     description: "AlmaLinux 10 - Local AppStream"
-    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
   - name: alma10-local-extras
     description: "AlmaLinux 10 - Local Extras"
-    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
 
 gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"

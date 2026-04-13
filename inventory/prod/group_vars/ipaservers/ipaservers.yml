@@ -6,7 +6,7 @@ ipaserver_auto_reverse: yes
 ipaserver_forwarders: ['213.186.33.99']
 
 # Configuration Host & IP
-ipa_server_fqdn: infra-prod-freeipa.ans.local
+ipa_server_fqdn: infra-prod-freeipa01.ans.local
 ipa_server_ip: 10.11.90.13
  
 # Réseaux pour les zones DNS inverses

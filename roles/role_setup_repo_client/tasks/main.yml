@@ -23,6 +23,7 @@
     baseurl: "{{ repository.baseurl }}"
     enabled: true
     gpgcheck: true
+    sslverify: false
     gpgkey: "{{ gpgkey }}"
   loop: "{{ repositories }}"
   loop_control:

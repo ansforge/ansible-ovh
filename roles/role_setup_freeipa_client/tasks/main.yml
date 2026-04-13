@@ -1,0 +1,63 @@
+---
+- name: Supprimer l'entree erronee sur 127.0.0.1
+  lineinfile:
+    path: /etc/hosts
+    regexp: "^127.0.0.1[ \\t]+{{ inventory_hostname }}.*"
+    state: absent
+
+- name: Configuration propre de /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_host }} {{ inventory_hostname }}.{{ ipaserver_domain }} {{ inventory_hostname }}"
+    state: present
+
+- name: Ajouter le serveur IPA dans /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ipa_server_ip }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn.split('.')[0] }}"
+    state: present
+
+- name: Correction du Hostname
+  hostname:
+    name: "{{ inventory_hostname }}.{{ ipaserver_domain }}"
+
+- name: Nettoyage des anciens certificats/configs (Force Clean)
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/ipa/default.conf
+    - /etc/krb5.conf
+
+- name: Forcer le DNS vers le serveur IPA
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ ipa_server_ip }}
+      search {{ ipaserver_domain }}
+
+- name: Creer le repertoire /etc/ipa
+  file:
+    path: /etc/ipa
+    state: directory
+    mode: '0755'
+
+- name: Telecharger le certificat CA depuis le serveur IPA
+  command:
+    cmd: "curl -kL -o /etc/ipa/ca.crt https://{{ ipa_server_ip }}/ipa/config/ca.crt"
+    creates: /etc/ipa/ca.crt
+
+- name: Install FreeIPA Client
+  include_role:
+    name: freeipa.ansible_freeipa.ipaclient
+  vars:
+    ipaadmin_password: "{{ vault_ipaadmin_password }}"
+    ipaclient_domain: "{{ ipaserver_domain }}"
+    ipaclient_realm: "{{ ipaserver_realm }}"
+    ipaclient_servers:
+      - "{{ ipa_server_fqdn }}"
+    ipaclient_mkhomedir: true
+    ipaclient_force_join: true
+    ipaclient_force: true
+    ipaclient_no_ntp: true
+    ipaclient_no_nisdomain: true

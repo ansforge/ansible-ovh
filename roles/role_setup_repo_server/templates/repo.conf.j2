@@ -1,17 +1,21 @@
-# Configuration du repository local AlmaLinux
-{% for alias in repo_http_alias_list %}
-Alias /{{ alias }} {{ repo_base_path }}/{{ alias }}
+<VirtualHost *:443>
+    ServerName {{ repo_server_fqdn }}
 
-<Directory {{ repo_base_path }}/{{ alias }}>
-    # Permet de lister les fichiers (important pour DNF/YUM)
-    Options Indexes FollowSymLinks
-    AllowOverride None
-    
-    # Restriction d'accès aux VLANs autorisés
-    <RequireAny>
-        {% for net in allowednets %}
-        Require ip {{ net }}
-        {% endfor %}
-    </RequireAny>
-</Directory>
+    SSLEngine on
+    SSLCertificateFile /etc/pki/tls/certs/repo.crt
+    SSLCertificateKeyFile /etc/pki/tls/private/repo.key
+
+{% for alias in repo_http_alias_list %}
+    Alias /{{ alias }} {{ repo_base_path }}/{{ alias }}
+
+    <Directory {{ repo_base_path }}/{{ alias }}>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        <RequireAny>
+            {% for net in allowednets %}
+            Require ip {{ net }}
+            {% endfor %}
+        </RequireAny>
+    </Directory>
 {% endfor %}
+</VirtualHost>

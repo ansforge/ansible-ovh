@@ -1,1 +1,4 @@
 proxy_port: 3128
+squid_http_port: 3128
+squid_config_file: /etc/squid/squid.conf
+squid_whitelist_file: /etc/squid/whitelist

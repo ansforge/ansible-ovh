@@ -1,37 +1,39 @@
 ---
-- name: Supprimer anciennes versions conflictuelles de bind-utils
-  ansible.builtin.dnf:
-    name:
-      - bind-utils
-      - bind9.18-utils
-    state: absent
-  ignore_errors: true
-
 - name: Installer outils Linux essentiels
   ansible.builtin.dnf:
     name:
+      # Éditeurs
       - nano
       - vim
+      # Réseau & diagnostic
       - wget
       - curl
-      - git
       - net-tools
       - bind-utils
-      - bash-completion
-      - htop
-      - lsof
       - tcpdump
+      - nmap-ncat
+      - traceroute
+      - iputils
+      # Système & fichiers
+      - lsof
+      - tar
       - unzip
+      - zip
+      - rsync
+      - tree
+      - findutils
+      - procps-ng
+      - sysstat
+      - bash-completion
+      # Sécurité & SELinux
+      - policycoreutils-python-utils
+      - openssl
+      # Dev & scripting
+      - git
       - python3
       - python3-pip
-      - ncdu
-      - policycoreutils-python-utils
-      - nmap-ncat
+      - jq
+      - make
     state: present
     update_cache: true
-  register: install_result
 
-- name: Afficher les éventuels échecs de paquets
-  ansible.builtin.debug:
-    msg: "{{ install_result.failures | default([]) }}"
-  when: install_result is failed

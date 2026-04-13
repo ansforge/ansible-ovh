@@ -3,13 +3,43 @@
   hosts: "{{ groups['ipaservers'][0] }}"
   become: yes
 
-  collections:
-    - ansible.netcommon
-    - freeipa.ansible_freeipa
-
   vars_files:
-    - users_data.yml
     - ../../vaults/vault_freeipa.yml
+
+  vars:
+    ipa_user_update_password_policy: on_create
+
+    # Groupes à créer
+    ipa_groups:
+      - name: gr-infra-admin-preprod
+    
+    # Utilisateurs à créer (avec leurs groupes)
+    ipa_users:
+      - name: schaabane
+        first: Safouane
+        last: Chabane
+        email: safouane.chaabane@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        groups:
+          - gr-infra-admin-preprod
+      - name: gdidenot
+        first: Gregoire
+        last: Didenot
+        email: gregoire.didenot@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        groups:
+          - gr-infra-admin-preprod
+      - name: jcsesia
+        first: Jean-Claude
+        last: Sesia
+        email: jean-claude.sesia@atos.net
+        password: "achanger"
+        update_password: "{{ ipa_user_update_password_policy }}"
+        passwordexpiration: "2026-02-27 10:15:00"
+        groups:
+          - gr-infra-admin-preprod
 
   tasks:
     - name: Create Groups

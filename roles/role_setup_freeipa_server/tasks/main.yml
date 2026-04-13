@@ -19,7 +19,6 @@
 - name: Create Reverse Zones
   freeipa.ansible_freeipa.ipadnszone:
     ipaadmin_password: "{{ vault_ipaadmin_password }}"
-    name: "{{ item | ipaddr('revdns') | regex_replace('^0\\.', '') }}"
+    name: "{{ item | ansible.utils.ipaddr('revdns') | regex_replace('^0\\.', '') }}"
     state: present
   loop: "{{ ipa_reverse_zones }}"
-

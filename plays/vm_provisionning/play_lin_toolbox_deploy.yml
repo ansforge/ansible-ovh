@@ -1,6 +1,6 @@
 ---
 - name: Activer EPEL et installer toolbox Linux
-  hosts: all
+  hosts: "{{ HOSTS }}"
   become: true
   roles:
     - role_toolbox

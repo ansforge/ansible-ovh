@@ -1,3 +1,11 @@
+- name: Désactivation de la gestion du resolv.conf par le NetworkManager
+  ansible.builtin.lineinfile:
+    path: /etc/NetworkManager/NetworkManager.conf
+    insertafter: "\\[main\\]"
+    line: "dns=none"
+    state: present
+  notify: Redemarrage du NetworkManager
+
 - name: Configuration du fichier /etc/resolv.conf
   ansible.builtin.template:
     src: resolv_conf.j2
