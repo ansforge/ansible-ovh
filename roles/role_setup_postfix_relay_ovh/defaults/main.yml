@@ -1,0 +1,23 @@
+---
+postfix_myhostname: "{{ ansible_fqdn | default(inventory_hostname) }}"
+postfix_mydomain: "{{ postfix_myhostname.split('.', 1)[1] if '.' in postfix_myhostname else 'ans.local' }}"
+postfix_myorigin: "$mydomain"
+
+# Domaine local (tu veux garder .ans.local)
+postfix_mydestination_extra: []
+
+# OVH SMTP
+postfix_relayhost: "ssl0.ovh.net"
+postfix_relayport: 587         # 587 STARTTLS (recommandé)
+postfix_smtp_user: "noreply@ans.local"
+postfix_smtp_pass: "CHANGE_ME"
+
+# si OVH impose un from spécifique, tu peux faire du rewriting via generic
+postfix_enable_generic_map: false
+postfix_generic_map:
+  # remap local users -> from address
+  # root: "noreply@ans.local"
+  {}
+
+postfix_inet_interfaces: "all"
+postfix_inet_protocols: "ipv4"

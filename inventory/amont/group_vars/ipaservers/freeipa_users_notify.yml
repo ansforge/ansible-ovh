@@ -1,0 +1,7 @@
+---
+freeipa_users_notify:
+  - username: "schaabane"
+    first: "Safouane"
+    last: "Chaabane"
+    email: "safouane.chaabane@atos.net"
+    password_clear: "Test1234!"

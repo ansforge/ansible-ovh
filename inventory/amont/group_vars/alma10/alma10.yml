@@ -1,4 +1,4 @@
-repo_http_alias: alma10-repos
+repo_http_alias: "repos/alma10-repos"
 
 repositories:
   - name: alma10-local-baseos

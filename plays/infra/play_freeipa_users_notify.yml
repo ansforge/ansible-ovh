@@ -1,0 +1,6 @@
+---
+- name: Create/Update FreeIPA users and send credentials by email
+  hosts: ipaservers
+  become: true
+  roles:
+    - role_freeipa_users_notify

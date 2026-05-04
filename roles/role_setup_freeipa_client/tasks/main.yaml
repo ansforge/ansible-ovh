@@ -1,43 +1,50 @@
 ---
-- name: Supprimer l'entree erronee sur 127.0.0.1
-  lineinfile:
-    path: /etc/hosts
-    regexp: ^127\.0\.0\.1\s+infra-amont-tfansible01
-    state: absent
+- name: Lire les variables FreeIPA
+  ansible.builtin.include_vars:
+    file: "../../vaults/vault_freeipa.yml"
 
-- name: Correction du Hostname
-  hostname:
-    name: "{{ inventory_hostname }}.ans.local"
+- name: Définir le hostname
+  become: true
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname | regex_replace('^infra-prod', 'infra-amont') }}.{{ freeipa_domain }}"
 
-- name: Configuration propre de /etc/hosts
-  lineinfile:
-    path: /etc/hosts
-    line: "{{ ansible_host }} {{ inventory_hostname }}.ans.local {{ inventory_hostname }}"
+- name: Vérifier le hostname actif
+  become: true
+  ansible.builtin.command: hostnamectl --static
+  register: hostname_result
+  changed_when: false
+
+- name: Installer le client FreeIPA
+  become: true
+  ansible.builtin.package:
+    name: freeipa-client
     state: present
 
-- name: Nettoyage des anciens certificats/configs (Force Clean)
-  file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/ipa/ca.crt
-    - /etc/ipa/default.conf
-    - /etc/krb5.conf
+- name: Vérifier si déjà enrolé FreeIPA
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: ipa_client_registered
 
-- name: Forcer le DNS vers le serveur IPA
-  copy:
-    dest: /etc/resolv.conf
-    content: |
-      nameserver 10.11.90.13
-      search ans.local
+- name: Vérifier variables FreeIPA obligatoires
+  ansible.builtin.assert:
+    that:
+      - freeipa_domain is defined
+      - freeipa_realm is defined
+      - freeipa_server is defined
+      - freeipa_admin_principal is defined
+      - freeipa_admin_password is defined
+    fail_msg: "Variables FreeIPA manquantes dans vault_freeipa.yml"
 
-- name: Install FreeIPA Client
-  include_role:
-    name: freeipa.ansible_freeipa.ipaclient
-  vars:
-    ipaadmin_password: "{{ vault_ipaadmin_password }}"
-    ipaclient_domain: ans.local
-    ipaclient_realm: ANS.LOCAL
-    ipaclient_servers: [10.11.90.13]
-    ipaclient_mkhomedir: true
-    ipaclient_force_join: true
+- name: Enroller la machine dans FreeIPA
+  become: true
+  ansible.builtin.command: >
+    ipa-client-install
+    --unattended
+    --force
+    --hostname={{ inventory_hostname | regex_replace('^infra-prod', 'infra-amont') }}.{{ freeipa_domain }}
+    --domain={{ freeipa_domain }}
+    --realm={{ freeipa_realm }}
+    --server={{ freeipa_server }}
+    --principal={{ freeipa_admin_principal }}
+    --password={{ freeipa_admin_password }}
+  when: not ipa_client_registered.stat.exists

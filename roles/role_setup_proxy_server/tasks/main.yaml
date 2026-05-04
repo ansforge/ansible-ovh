@@ -22,7 +22,7 @@
     group: root
     mode: "0644"
     backup: yes
-  notify: Redémarrer Squid
+  notify: restart squid
   tags: install
 
 - name: Vérifier la configuration Squid

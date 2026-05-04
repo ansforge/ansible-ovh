@@ -1,20 +1,41 @@
 ---
+# ----------------------------
+# Proxy configuration
+# ----------------------------
+
+- name: Définir l'URL du proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_url: "http://{{ hostvars['infra-prod-proxy01'].proxy_listen_ip }}:3128"
+  when: proxy_url is not defined
+
 - name: Configurer le proxy dans dnf.conf
   ansible.builtin.lineinfile:
     path: /etc/dnf/dnf.conf
-    regexp: "^proxy"
-    line: "proxy={{ proxy_ip }}:{{ proxy_port }}"
+    regexp: "^proxy="
+    line: "proxy={{ proxy_url }}"
     insertafter: "[main]"
     state: present
-  
+
+# ----------------------------
+# Installation des paquets
+# ----------------------------
+
 - name: Installer les outils nécessaires (dnf-utils, createrepo, httpd, selinux utils)
-  dnf:
+  ansible.builtin.dnf:
     name:
       - dnf-utils
       - createrepo
       - httpd
       - policycoreutils-python-utils
     state: present
+  environment:
+    http_proxy: "{{ proxy_url }}"
+    https_proxy: "{{ proxy_url }}"
+    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+
+# ----------------------------
+# Filesystem
+# ----------------------------
 
 - name: Préparer le système de fichiers sur le disque de stockage
   community.general.filesystem:
@@ -22,30 +43,34 @@
     dev: "{{ repo_disk_device }}"
 
 - name: Créer le répertoire parent pour le montage
-  file:
+  ansible.builtin.file:
     path: "{{ repo_mount_path }}"
     state: directory
     mode: "0755"
 
 - name: Monter la partition de données
-  mount:
+  ansible.builtin.mount:
     path: "{{ repo_mount_path }}"
     src: "{{ repo_disk_device }}"
     fstype: ext4
     state: mounted
     opts: defaults
 
-- name: Créer les répertoires pour chacune des versions d alma
-  file:
+# ----------------------------
+# Repo structure
+# ----------------------------
+
+- name: Créer les répertoires pour chacune des versions d'AlmaLinux
+  ansible.builtin.file:
     path: "{{ repo_base_path }}/{{ item }}"
     state: directory
     owner: apache
     group: apache
     mode: "0755"
   loop: "{{ repo_http_alias_list }}"
-      
+
 - name: Créer les sous-répertoires pour les dépôts (baseos, appstream, etc.)
-  file:
+  ansible.builtin.file:
     path: "{{ repo_base_path }}/{{ item.0 }}/{{ item.1 }}"
     state: directory
     owner: apache
@@ -53,65 +78,54 @@
     mode: "0755"
   loop: "{{ repo_http_alias_list | product(alma_repos) }}"
 
-#- name: Créer les répertoires pour les dépôts (baseos, appstream, etc.)
-#  file:
-#    path: "{{ repo_base_path }}/{{ item }}"
-#    state: directory
-#    owner: apache
-#    group: apache
-#    mode: "0755"
-#  loop: "{{ alma_repos }}"
+# ----------------------------
+# SELinux
+# ----------------------------
 
 - name: Configurer SELinux pour autoriser Apache sur le dossier repos
-  sefcontext:
+  ansible.builtin.sefcontext:
     target: "{{ repo_base_path }}(/.*)?"
     setype: httpd_sys_content_t
     state: present
 
 - name: Appliquer le contexte SELinux (restorecon)
-  command: restorecon -irv {{ repo_base_path }}
+  ansible.builtin.command: restorecon -irv {{ repo_base_path }}
   register: restorecon_result
   changed_when: '"relabeled" in restorecon_result.stdout'
 
+# ----------------------------
+# Apache
+# ----------------------------
+
 - name: Configurer Apache (VirtualHost)
-  template:
+  ansible.builtin.template:
     src: repo.conf.j2
     dest: /etc/httpd/conf.d/repo.conf
   notify: restart httpd
 
-#- name: S'assurer que firewalld est démarré
-#  systemd:
-#    name: firewalld
-#    state: started
-#    enabled: true
-#
-#- name: Ouvrir les ports Firewall (http/https)
-#  firewalld:
-#    service: "{{ item }}"
-#    permanent: true
-#    state: enabled
-#    immediate: true
-#  loop: [http, https]
-
 - name: Activer et démarrer Apache
-  systemd:
+  ansible.builtin.systemd:
     name: httpd
     enabled: true
     state: started
 
+# ----------------------------
+# Sync repos
+# ----------------------------
+
 - name: Déployer le script de synchronisation des dépôts
-  template:
+  ansible.builtin.template:
     src: sync_repos.sh.j2
     dest: /usr/local/bin/sync_repos.sh
     mode: "0755"
 
-- name: Lancer la synchronisation initiale (Peut prendre du temps)
-  command: /usr/local/bin/sync_repos.sh
+- name: Lancer la synchronisation initiale (peut prendre du temps)
+  ansible.builtin.command: /usr/local/bin/sync_repos.sh
   args:
     creates: "{{ repo_base_path }}/baseos/repodata"
 
 - name: Planifier la synchronisation Cron (02h00)
-  cron:
+  ansible.builtin.cron:
     name: "Sync AlmaLinux Repos"
     minute: "0"
     hour: "2"

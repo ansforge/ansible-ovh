@@ -1,0 +1,38 @@
+# Managed by Ansible
+
+# Basic settings
+myhostname = {{ postfix_myhostname }}
+mydomain = {{ postfix_mydomain }}
+myorigin = {{ postfix_myorigin | default('$mydomain') }}
+
+# Network settings
+inet_interfaces = {{ postfix_inet_interfaces | default('all') }}
+inet_protocols = {{ postfix_inet_protocols | default('ipv4') }}
+
+# Local delivery / relay restrictions
+mydestination = {{ postfix_mydestination }}
+mynetworks = {{ (postfix_mynetworks | default(['127.0.0.0/8'])) | join(' ') }}
+smtpd_relay_restrictions = {{ postfix_smtpd_relay_restrictions }}
+
+# Aliases (RHEL/Alma 10: no hash backend)
+alias_maps = lmdb:/etc/aliases
+alias_database = lmdb:/etc/aliases
+
+# SMTP AUTH (server side)
+smtpd_sasl_auth_enable = {{ (postfix_smtpd_sasl_auth_enable | default(true)) | ternary('yes','no') }}
+smtpd_sasl_security_options = {{ postfix_smtpd_sasl_security_options | default('noanonymous') }}
+broken_sasl_auth_clients = {{ (postfix_broken_sasl_auth_clients | default(true)) | ternary('yes','no') }}
+
+# TLS inbound
+smtpd_use_tls = {{ (postfix_smtpd_use_tls | default(true)) | ternary('yes','no') }}
+smtpd_tls_security_level = {{ postfix_smtpd_tls_security_level | default('may') }}
+smtpd_tls_cert_file = {{ postfix_smtpd_tls_cert_file }}
+smtpd_tls_key_file = {{ postfix_smtpd_tls_key_file }}
+
+# TLS outbound
+smtp_tls_security_level = {{ postfix_smtp_tls_security_level | default('may') }}
+smtp_tls_note_starttls_offer = {{ (postfix_smtp_tls_note_starttls_offer | default(true)) | ternary('yes','no') }}
+
+# Limits
+message_size_limit = {{ postfix_message_size_limit | default(52428800) }}
+mailbox_size_limit = {{ postfix_mailbox_size_limit | default(0) }}

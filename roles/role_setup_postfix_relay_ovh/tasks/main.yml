@@ -1,0 +1,58 @@
+---
+- name: Install postfix + sasl packages
+  become: true
+  ansible.builtin.package:
+    name:
+      - postfix
+      - cyrus-sasl
+      - cyrus-sasl-plain
+      - mailx
+      - lmdb-libs
+    state: present
+
+- name: Ensure /etc/aliases exists
+  become: true
+  ansible.builtin.file:
+    path: /etc/aliases
+    state: touch
+    mode: "0644"
+
+- name: Configure postfix main.cf (SMTP server)
+  become: true
+  ansible.builtin.template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    mode: "0644"
+  notify: reload postfix
+
+- name: Build aliases LMDB map (creates /etc/aliases.lmdb)
+  become: true
+  ansible.builtin.command: postalias lmdb:/etc/aliases
+  changed_when: false
+  notify: reload postfix
+
+- name: Enable submission service in master.cf (587)
+  become: true
+  ansible.builtin.replace:
+    path: /etc/postfix/master.cf
+    regexp: '^#(submission\s+inet\s+.*)'
+    replace: '\1'
+  notify: reload postfix
+
+- name: Open firewall ports for SMTP (25) and submission (587)
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "25/tcp"
+    - "587/tcp"
+
+- name: Enable and start postfix
+  become: true
+  ansible.builtin.service:
+    name: postfix
+    enabled: true
+    state: started

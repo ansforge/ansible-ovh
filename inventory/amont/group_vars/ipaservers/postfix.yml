@@ -1,0 +1,41 @@
+---
+# Identité SMTP
+postfix_myhostname: "infra-amont-freeipa01.amont.ans.local"
+postfix_mydomain: "amont.ans.local"
+postfix_myorigin: "$mydomain"
+
+# Écoute réseau
+postfix_inet_interfaces: "all"
+postfix_inet_protocols: "ipv4"
+
+# Domaines considérés "locaux" (ce que postfix accepte comme destination locale)
+postfix_mydestination: "{{ postfix_myhostname }}, localhost.{{ postfix_mydomain }}, localhost, {{ postfix_mydomain }}"
+
+# Réseaux autorisés à relayer SANS auth (à adapter à ton LAN)
+postfix_mynetworks:
+  - "127.0.0.0/8"
+  - "10.12.90.0/24"
+
+# Activer AUTH côté serveur (smtpd_*)
+postfix_smtpd_sasl_auth_enable: true
+postfix_smtpd_sasl_security_options: "noanonymous"
+postfix_broken_sasl_auth_clients: true
+
+# Contrôle du relay (important sinon open relay)
+postfix_smtpd_relay_restrictions: "permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination"
+
+# TLS (à définir/adapter selon tes certs FreeIPA)
+postfix_smtpd_use_tls: true
+postfix_smtpd_tls_security_level: "may"
+
+# Certificats: sur FreeIPA, on peut réutiliser les certs HTTPD si tu veux
+# À VALIDER: selon ton déploiement IPA, chemins possibles:
+postfix_smtpd_tls_cert_file: "/etc/pki/tls/certs/localhost.crt"
+postfix_smtpd_tls_key_file: "/etc/pki/tls/private/localhost.key"
+
+# TLS sortant (quand postfix contacte les MX)
+postfix_smtp_tls_security_level: "may"
+postfix_smtp_tls_note_starttls_offer: true
+
+# Taille max (optionnel)
+postfix_message_size_limit: 52428800

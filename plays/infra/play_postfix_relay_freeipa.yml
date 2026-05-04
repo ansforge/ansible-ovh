@@ -1,0 +1,6 @@
+---
+- name: Setup postfix relay on FreeIPA server
+  hosts: ipaservers
+  become: true
+  roles:
+    - role_setup_postfix_relay_ovh

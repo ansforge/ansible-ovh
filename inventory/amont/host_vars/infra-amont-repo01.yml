@@ -1,0 +1,2 @@
+ansible_host: 10.12.90.12
+fqdn: infra-amont-repo01.amont.ans.local

@@ -1,0 +1,4 @@
+---
+freeipa_notify_to: "safouane.chaabane@atos.net"
+freeipa_notify_from: "noreply@ans.local"
+freeipa_notify_subject: "Test notification FreeIPA"

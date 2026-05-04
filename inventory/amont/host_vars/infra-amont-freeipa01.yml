@@ -1,0 +1,2 @@
+ansible_host: 10.12.90.13
+fqdn: infra-amont-freeipa01.amont.ans.local

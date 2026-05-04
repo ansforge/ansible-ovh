@@ -1,53 +1,65 @@
-# Configuration Squid en mode proxy explicite
-# Généré par Ansible
+
+# Configuration Squid en mode proxy explicite - CORRIGÉ
+# Localisation : /etc/squid/squid.conf
 
 # Port HTTP pour le proxy explicite
-http_port {{ squid_http_port }}
+http_port 3128
 
-# ACL pour la whitelist
-acl whitelist_domains dstdomain "{{ squid_whitelist_file }}"
+# --- ACL (Access Control Lists) ---
 
-# ACL standards
+# Whitelist domaines
+acl whitelist_domains dstdomain "/etc/squid/whitelist"
+
+# Réseaux internes autorisés
+acl internal_nets src 10.11.90.12/32   # infra-prod-repo01
+acl internal_nets src 10.11.90.13/32   # infra-prod-freeipa01
+acl internal_nets src 10.11.90.14/32   # infra-prod-tfansible01
+acl localhost_net src 127.0.0.1/32
+
+# Ports autorisés
 acl SSL_ports port 443
-acl Safe_ports port 80          # http
-acl Safe_ports port 443         # https
+acl Safe_ports port 80
+acl Safe_ports port 443
+
+# Méthode HTTPS tunnel
 acl CONNECT method CONNECT
 
-# Règles de sécurité de base
+
+# --- RÈGLES D'ACCÈS (ordre CRITIQUE) ---
+
+# 1. Refuser ports non sûrs
 http_access deny !Safe_ports
+
+# 2. Refuser CONNECT vers ports non SSL
 http_access deny CONNECT !SSL_ports
 
-# Autoriser localhost pour la gestion
-http_access allow localhost manager
-http_access deny manager
+# 3. Autoriser localhost (admin)
+http_access allow localhost
+http_access allow localhost_net
 
-# Règle principale: autoriser UNIQUEMENT les domaines de la whitelist
-http_access allow whitelist_domains
+# 4. Autoriser réseaux internes UNIQUEMENT vers whitelist
+http_access allow internal_nets whitelist_domains CONNECT SSL_ports
 
-# Refuser tout le reste
+# 5. Refuser tout le reste
 http_access deny all
 
-# Configuration du cache
+
+# --- CONFIG SYSTÈME ---
+
 cache_dir ufs /var/spool/squid 100 16 256
 coredump_dir /var/spool/squid
 
-# Paramètres de journalisation
 access_log /var/log/squid/access.log squid
 cache_log /var/log/squid/cache.log
 
-# Paramètres de rafraîchissement du cache
 refresh_pattern ^ftp:           1440    20%     10080
 refresh_pattern ^gopher:        1440    0%      1440
-refresh_pattern -i (/cgi-bin/|\?) 0     0%      0
+refresh_pattern -i (/cgi-bin/|\?) 0      0%      0
 refresh_pattern .               0       20%     4320
 
-# Masquer la version de Squid
 httpd_suppress_version_string on
-
-# Paramètres de performance
 maximum_object_size 4096 KB
 minimum_object_size 0 KB
 maximum_object_size_in_memory 512 KB
 
-# Paramètres DNS
 dns_nameservers 8.8.8.8 8.8.4.4

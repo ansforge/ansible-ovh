@@ -1,0 +1,24 @@
+---
+# Ce rôle suppose que Postfix est déjà opérationnel sur le serveur.
+# Il envoie un mail de notification (corps généré depuis un template).
+
+- name: Ensure mailx is installed (mail command)
+  become: true
+  ansible.builtin.package:
+    name: mailx
+    state: present
+
+- name: Render mail body from template
+  ansible.builtin.set_fact:
+    freeipa_notify_mail_body: "{{ lookup('template', 'mail_body.txt.j2') }}"
+
+- name: Send notification email
+  become: true
+  ansible.builtin.shell: |
+    set -euo pipefail
+    printf '%s\n' "{{ freeipa_notify_mail_body | replace('%', '%%') }}" | \
+      mail -s "{{ freeipa_notify_subject | default('FreeIPA - Informations de compte') }}" \
+           -r "{{ freeipa_notify_from | default('noreply@ans.local') }}" \
+           "{{ freeipa_notify_to }}"
+  args:
+    executable: /bin/bash

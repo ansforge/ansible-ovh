@@ -1,21 +1,50 @@
 ---
-# Rôle : copy_ssh_key
+# Rôle : role_copy_ssh_key
 # Objectif : déployer la clé publique SSH du contrôleur Ansible sur les cibles
 
-- name: Vérifier la présence de la clé publique locale
-  ansible.builtin.stat:
-    path: "{{ ssh_pub_key_path }}"
-  register: pubkey
-  delegate_to: localhost
-  failed_when: not pubkey.stat.exists
+- name: Vérifier que les variables ssh_target_user et ssh_pub_key_path sont définies
+  ansible.builtin.assert:
+    that:
+      - ssh_target_user is defined
+      - ssh_pub_key_path is defined
+    fail_msg: "ssh_pub_key_path et ssh_target_user doivent être définis"
 
-- name: Lire le contenu de la clé publique
-  ansible.builtin.slurp:
-    src: "{{ ssh_pub_key_path }}"
-  register: pubkey_content
+- name: Vérifier la présence de la clé publique ed25519 (chemin ssh_pub_key_path)
+  ansible.builtin.stat:
+    path: "{{ ssh_pub_key_path | expanduser }}"
+  register: pubkey_ed25519
   delegate_to: localhost
+
+- name: Vérifier la présence d'une clé publique RSA de secours (~/.ssh/id_rsa.pub)
+  ansible.builtin.stat:
+    path: "{{ '~/.ssh/id_rsa.pub' | expanduser }}"
+  register: pubkey_rsa
+  delegate_to: localhost
+  when: not pubkey_ed25519.stat.exists
+
+- name: Choisir la clé publique à utiliser (ed25519 sinon RSA)
+  ansible.builtin.set_fact:
+    effective_ssh_pub_key_path: >-
+      {{
+        (ssh_pub_key_path | expanduser)
+        if pubkey_ed25519.stat.exists
+        else ('~/.ssh/id_rsa.pub' | expanduser)
+      }}
+  delegate_to: localhost
+
+- name: Échouer si aucune clé publique n'est disponible
+  ansible.builtin.fail:
+    msg: >-
+      Aucune clé publique trouvée.
+      Attendu: {{ ssh_pub_key_path | expanduser }}
+      ou fallback: {{ '~/.ssh/id_rsa.pub' | expanduser }}
+  when:
+    - not pubkey_ed25519.stat.exists
+    - pubkey_rsa is defined
+    - not pubkey_rsa.stat.exists
 
 - name: Installer la clé publique sur l’hôte distant
   ansible.posix.authorized_key:
     user: "{{ ssh_target_user }}"
-    key: "{{ pubkey_content.content | b64decode }}"
+    state: present
+    key: "{{ lookup('file', effective_ssh_pub_key_path) }}"

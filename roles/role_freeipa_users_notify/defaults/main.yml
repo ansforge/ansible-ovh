@@ -1,0 +1,17 @@
+---
+freeipa_realm: "AMONT.ANS.LOCAL"
+freeipa_admin_user: "admin"
+freeipa_admin_password: "CHANGE_ME"
+
+# texte “landing zone” demandé
+freeipa_mail_subject: "[OVH Public Cloud] Identifiants Landing Zone"
+freeipa_mail_sender: "noreply@ans.local"
+
+# Liste des users à gérer et notifier
+# freeipa_users_notify:
+#   - username: "schaabane"
+#     first: "Safouane"
+#     last: "Chaabane"
+#     email: "safouane.chaabane@entreprise.com"
+#     password_clear: "MonMotDePasse123!"
+freeipa_users_notify: []
