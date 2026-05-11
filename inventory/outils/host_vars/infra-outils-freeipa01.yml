@@ -1,0 +1,2 @@
+ansible_host: 10.16.90.13
+fqdn: infra-outils-freeipa01.outils.ans.local

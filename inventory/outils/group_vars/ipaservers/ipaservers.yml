@@ -1,0 +1,17 @@
+# Parametres DNS
+ipaserver_domain: outils.ans.local
+ipaserver_realm: OUTILS.ANS.LOCAL
+ipaserver_setup_dns: yes
+ipaserver_auto_reverse: yes
+ipaserver_forwarders: ['213.186.33.99']
+
+# Configuration Host & IP
+ipa_server_fqdn: infra-outils-freeipa01.outils.ans.local
+ipa_server_ip: 10.16.90.13
+
+# Réseaux pour les zones DNS inverses
+ipa_reverse_zones:
+  - 10.16.90.0/24
+  - 10.16.52.0/24
+  - 10.16.70.0/24
+  - 10.15.30.0/24

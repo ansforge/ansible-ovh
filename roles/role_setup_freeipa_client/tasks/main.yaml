@@ -6,7 +6,7 @@
 - name: Définir le hostname
   become: true
   ansible.builtin.hostname:
-    name: "{{ inventory_hostname | regex_replace('^infra-prod', 'infra-amont') }}.{{ freeipa_domain }}"
+    name: "{{ inventory_hostname | regex_replace('^infra-prod', 'infra-outils') }}.{{ freeipa_domain }}"
 
 - name: Vérifier le hostname actif
   become: true
@@ -41,7 +41,7 @@
     ipa-client-install
     --unattended
     --force
-    --hostname={{ inventory_hostname | regex_replace('^infra-prod', 'infra-amont') }}.{{ freeipa_domain }}
+    --hostname={{ inventory_hostname | regex_replace('^infra-prod', 'infra-outils') }}.{{ freeipa_domain }}
     --domain={{ freeipa_domain }}
     --realm={{ freeipa_realm }}
     --server={{ freeipa_server }}

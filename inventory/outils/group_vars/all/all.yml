@@ -1,15 +1,15 @@
 ---
-main_domain: "amont.ans.local"
-repo_server_fqdn: "infra-amont-repo01.{{ main_domain }}"
+main_domain: "outils.ans.local"
+repo_server_fqdn: "infra-outils-repo01.{{ main_domain }}"
 
 ntpservers:
   - ntp.ovh.net
 
 allowednets:
-  - '10.12.90.0/24'
-  - '10.12.52.0/24'
-  - '10.12.30.0/24'
-  - '10.12.70.0/24'
+  - '10.16.90.0/24'
+  - '10.16.52.0/24'
+  - '10.15.30.0/24'
+  - '10.16.70.0/24'
 
 repo_server_ip: "{{ hostvars[groups['repo'][0]]['ansible_host'] }}"
 

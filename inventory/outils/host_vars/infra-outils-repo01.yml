@@ -1,0 +1,2 @@
+ansible_host: 10.16.90.12
+fqdn: infra-outils-repo01.outils.ans.local

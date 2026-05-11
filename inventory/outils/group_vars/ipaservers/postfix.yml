@@ -1,7 +1,7 @@
 ---
 # Identité SMTP
-postfix_myhostname: "infra-amont-freeipa01.amont.ans.local"
-postfix_mydomain: "amont.ans.local"
+postfix_myhostname: "infra-outils-freeipa01.outils.ans.local"
+postfix_mydomain: "outils.ans.local"
 postfix_myorigin: "$mydomain"
 
 # Écoute réseau
@@ -14,7 +14,7 @@ postfix_mydestination: "{{ postfix_myhostname }}, localhost.{{ postfix_mydomain 
 # Réseaux autorisés à relayer SANS auth (à adapter à ton LAN)
 postfix_mynetworks:
   - "127.0.0.0/8"
-  - "10.12.90.0/24"
+  - "10.16.90.0/24"
 
 # Activer AUTH côté serveur (smtpd_*)
 postfix_smtpd_sasl_auth_enable: true

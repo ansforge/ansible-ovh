@@ -1,5 +1,5 @@
 ---
-freeipa_realm: "AMONT.ANS.LOCAL"
+freeipa_realm: "OUTILS.ANS.LOCAL"
 freeipa_admin_user: "admin"
 freeipa_admin_password: "CHANGE_ME"
 

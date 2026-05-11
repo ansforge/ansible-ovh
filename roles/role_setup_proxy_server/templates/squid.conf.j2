@@ -11,9 +11,9 @@ http_port 3128
 acl whitelist_domains dstdomain "/etc/squid/whitelist"
 
 # Réseaux internes autorisés
-acl internal_nets src 10.11.90.12/32   # infra-prod-repo01
-acl internal_nets src 10.11.90.13/32   # infra-prod-freeipa01
-acl internal_nets src 10.11.90.14/32   # infra-prod-tfansible01
+acl internal_nets src 10.15.30.11/32   # infra-prod-repo01
+acl internal_nets src 10.15.30.11/32   # infra-prod-freeipa01
+acl internal_nets src 10.15.30.11/32   # infra-prod-tfansible01
 acl localhost_net src 127.0.0.1/32
 
 # Ports autorisés
