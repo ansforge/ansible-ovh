@@ -1,0 +1,19 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/nat_rpps.yml
+
+  pre_tasks:
+    - name: "Créer séparateur rpps_prod (NAT)"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          CONFIG FILTER RULE ADDSEP index={{ sns_nat_slot }} type=nat color=0000ff comment=rpps_prod collapse=0
+
+  roles:
+    - role: stormshield.sns.sns_policy
+      slot: "{{ sns_nat_slot }}"
+      mode: add
+      activate: yes
+      nat: "{{ sns_nat_rules_rpps }}"

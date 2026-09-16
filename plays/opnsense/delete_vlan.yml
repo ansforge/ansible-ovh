@@ -1,0 +1,183 @@
+---
+# ---------------------------------------------------------------------------
+# delete_vlan.yml
+# Supprime VLAN + interface + VIP CARP sur master et slave
+# Usage : ansible-playbook -i inventory.yml delete_vlan.yml -e vlan_id=111
+# ---------------------------------------------------------------------------
+
+- name: Suppression VLAN et VIP CARP OPNsense
+  hosts: opnsense
+  gather_facts: false
+  serial: 1
+
+  vars:
+    api_host: "{{ ansible_host }}"
+    api_key: "{{ opn_api_key }}"
+    api_secret: "{{ opn_api_secret }}"
+    opn_ssl_verify: false
+    opn_timeout: 30
+    ssh_key: "/home/almalinux/.ssh/opnsense_key"
+    vlan_device: "vmx0_vlan{{ vlan_id }}"
+
+  tasks:
+
+    # -----------------------------------------------------------------------
+    # ETAPE 1 - Suppression VIP CARP
+    # -----------------------------------------------------------------------
+    - name: "Récupération des VIPs existantes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vip_settings/searchItem"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_vips
+
+    - name: "Identification des VIPs à supprimer"
+      ansible.builtin.set_fact:
+        vips_to_delete: >-
+          {{
+            existing_vips.json.rows
+            | selectattr('descr', 'search', 'vlan' + vlan_id | string)
+            | map(attribute='uuid')
+            | list
+          }}
+
+    - name: "Suppression des VIPs"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vip_settings/delItem/{{ item }}"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      loop: "{{ vips_to_delete }}"
+      when: vips_to_delete | length > 0
+      register: vips_deleted
+
+    - name: "Reconfigure VIPs"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vip_settings/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: vips_to_delete | length > 0
+
+    # -----------------------------------------------------------------------
+    # ETAPE 2 - Suppression interface dans config.xml
+    # -----------------------------------------------------------------------
+    - name: "Génération du script PHP de suppression interface"
+      ansible.builtin.copy:
+        dest: "/tmp/delete_iface_{{ vlan_device }}.php"
+        content: |
+          <?php
+          $xml = simplexml_load_file('/conf/config.xml');
+          foreach ($xml->interfaces->children() as $key => $iface) {
+              if ((string)$iface->if == '{{ vlan_device }}') {
+                  $dom = dom_import_simplexml($iface);
+                  $dom->parentNode->removeChild($dom);
+                  echo "Supprimé : $key\n";
+              }
+          }
+          $xml->asXML('/conf/config.xml');
+          @unlink('/tmp/config.cache');
+          echo 'ok';
+
+    - name: "Copie du script PHP sur le firewall"
+      ansible.builtin.shell:
+        cmd: |
+          scp -i {{ ssh_key }} -o StrictHostKeyChecking=no \
+          /tmp/delete_iface_{{ vlan_device }}.php \
+          root@{{ api_host }}:/tmp/delete_iface_{{ vlan_device }}.php
+
+    - name: "Suppression de l'interface dans config.xml"
+      ansible.builtin.shell:
+        cmd: |
+          ssh -i {{ ssh_key }} -o StrictHostKeyChecking=no root@{{ api_host }} \
+          "php /tmp/delete_iface_{{ vlan_device }}.php"
+      register: iface_deleted
+
+    - name: "Application de la configuration interfaces"
+      ansible.builtin.shell:
+        cmd: |
+          ssh -i {{ ssh_key }} -o StrictHostKeyChecking=no root@{{ api_host }} \
+          "configctl interface reconfigure"
+      when: iface_deleted.changed
+
+    # -----------------------------------------------------------------------
+    # ETAPE 3 - Suppression device VLAN
+    # -----------------------------------------------------------------------
+    - name: "Récupération des VLANs existants"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vlan_settings/searchItem"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_vlans
+
+    - name: "Identification du device VLAN à supprimer"
+      ansible.builtin.set_fact:
+        vlan_uuid: >-
+          {{
+            existing_vlans.json.rows
+            | selectattr('vlanif', 'equalto', vlan_device)
+            | map(attribute='uuid')
+            | first | default('')
+          }}
+
+    - name: "Suppression du device VLAN"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vlan_settings/delItem/{{ vlan_uuid }}"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: vlan_uuid != ''
+
+    - name: "Reconfigure VLANs"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/interfaces/vlan_settings/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: vlan_uuid != ''
+
+    # -----------------------------------------------------------------------
+    # NETTOYAGE
+    # -----------------------------------------------------------------------
+    - name: "Suppression des scripts PHP temporaires"
+      ansible.builtin.file:
+        path: "/tmp/delete_iface_{{ vlan_device }}.php"
+        state: absent
+
+    # -----------------------------------------------------------------------
+    # RESUME
+    # -----------------------------------------------------------------------
+    - name: "Résumé"
+      ansible.builtin.debug:
+        msg:
+          - "🗑️  VLAN supprimé  : {{ vlan_device }}"
+          - "🗑️  VIPs supprimées : {{ vips_to_delete | length }}"
+          - "🗑️  Interface       : supprimée du config.xml"

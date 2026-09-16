@@ -1,0 +1,7 @@
+vlans:
+  - vlan_name: "infra_production_echange"
+    vlan_id: "46"
+    vip: "10.0.4.62/29"
+    ip_master: "10.0.4.60"
+    ip_slave: "10.0.4.61"
+    vhid: "46"

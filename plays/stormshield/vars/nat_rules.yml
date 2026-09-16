@@ -1,0 +1,80 @@
+---
+sns_nat_slot: 1
+
+sns_nat_rules:
+  - action: nat
+    noconnlog: all
+    srctarget: "ANS"
+    srcif: fw-front
+    dsttarget: "IP_PUB_52"
+    dstport: "SVC_LDAP,SVC_LDAPS"
+    beforevpn: "on"
+    natdsttarget: "prod_annuaire_slave02"
+    natdstarp: "on"
+    rulename: "ID_NAT_01"
+
+  - action: nat
+    noconnlog: all
+    srctarget: any
+    srcif: fw-front
+    dsttarget: "IP_PUB_52"
+    dstport: "SVC_LDAP"
+    beforevpn: "on"
+    natdsttarget: "prod_annuaire_slave02"
+    natdstarp: "on"
+    rulename: "ID_NAT_02"
+
+  - action: nat
+    noconnlog: all
+    srctarget: any
+    srcif: fw-front
+    dsttarget: "IP_PUB_56"
+    dstport: "SVC_LDAP"
+    beforevpn: "on"
+    natdsttarget: "prod_igc_slave01"
+    natdstarp: "on"
+    rulename: "ID_NAT_03"
+
+  - action: nat
+    noconnlog: all
+    srctarget: "ANS,IMPRIMERIENATIONALE"
+    srcif: fw-front
+    dsttarget: "IP_PUB_54"
+    dstport: "SVC_LDAPS"
+    beforevpn: "on"
+    natdsttarget: "prod_annuaire_master02"
+    natdstarp: "on"
+    rulename: "ID_NAT_04"
+
+  - action: nat
+    noconnlog: all
+    srctarget: "ANS,GRP_CDN,GRP_CDN_TEST"
+    srcif: fw-front
+    dsttarget: "IP_PUB_50"
+    dstport: "http"
+    beforevpn: "on"
+    natdsttarget: "prod_spw_02"
+    natdstarp: "on"
+    rulename: "ID_NAT_05"
+
+  - action: nat
+    noconnlog: all
+    srctarget: "DREES,INSEE"
+    srcif: fw-front
+    dsttarget: "IP_PUB_48"
+    dstport: "SVC_CFT_1765,SVC_CFT_1766,SVC_CFT_1767"
+    beforevpn: "on"
+    natdsttarget: "cps_prod_cft01"
+    natdstarp: "on"
+    rulename: "ID_NAT_06"
+
+  - action: nat
+    noconnlog: all
+    srctarget: "INSEE"
+    srcif: fw-front
+    dsttarget: "IP_PUB_48"
+    dstport: "SVC_CFT_1770"
+    beforevpn: "on"
+    natdsttarget: "cps_prod_cft01"
+    natdstarp: "on"
+    rulename: "ID_NAT_07"

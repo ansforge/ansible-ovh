@@ -1,0 +1,13 @@
+---
+- name: Déploiement de la plateforme de supervision (InfluxDB / Telegraf / Grafana)
+  hosts: supervision
+  become: true
+  vars_files:
+    - ../../vaults/vault_supervision.yml
+  roles:
+    - role: role_setup_influxdb
+      tags: [influxdb]
+    - role: role_setup_telegraf
+      tags: [telegraf]
+    - role: role_setup_grafana
+      tags: [grafana]

@@ -1,0 +1,201 @@
+---
+- name: Configurer le proxy dans dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: "^proxy"
+    line: "proxy={{ proxy_ip }}:{{ proxy_port }}"
+    insertafter: "[main]"
+    state: present
+  when: proxy_ip is defined
+
+- name: Installer les paquets NFS
+  dnf:
+    name: "{{ nfs_packages }}"
+    state: present
+
+- name: Vérifier la présence des disques de données
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ nfs_disk_devices }}"
+  register: nfs_disk_stat
+
+- name: Echouer si un disque de données est absent
+  ansible.builtin.fail:
+    msg: "Disque {{ item.item }} introuvable sur {{ inventory_hostname }}"
+  loop: "{{ nfs_disk_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not item.stat.exists
+
+- name: Créer le groupe de volumes sur les disques de données
+  community.general.lvg:
+    vg: "{{ nfs_vg_name }}"
+    pvs: "{{ nfs_disk_devices | join(',') }}"
+    state: present
+
+- name: Créer le volume logique
+  community.general.lvol:
+    vg: "{{ nfs_vg_name }}"
+    lv: "{{ nfs_lv_name }}"
+    size: "{{ nfs_lv_size }}"
+    state: present
+    shrink: false
+    resizefs: false
+
+- name: Préparer le système de fichiers sur le volume logique
+  community.general.filesystem:
+    fstype: "{{ nfs_fs_type }}"
+    dev: "/dev/{{ nfs_vg_name }}/{{ nfs_lv_name }}"
+    resizefs: true
+
+- name: Monter la partition de données
+  mount:
+    path: "{{ nfs_mount_path }}"
+    src: "/dev/{{ nfs_vg_name }}/{{ nfs_lv_name }}"
+    fstype: "{{ nfs_fs_type }}"
+    opts: "{{ nfs_mount_opts }}"
+    state: mounted
+
+- name: Créer les répertoires partagés
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('nobody') }}"
+    group: "{{ item.group | default('nobody') }}"
+    mode: "{{ item.mode | default('0777') }}"
+  loop: "{{ nfs_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Configurer SELinux pour autoriser les exports NFS en lecture/écriture
+  ansible.posix.seboolean:
+    name: "{{ item }}"
+    state: true
+    persistent: true
+  loop:
+    - nfs_export_all_rw
+    - nfs_export_all_ro
+  when: nfs_manage_selinux | bool
+
+- name: Configurer SELinux sur les répertoires partagés
+  sefcontext:
+    target: "{{ item.path }}(/.*)?"
+    setype: public_content_rw_t
+    state: present
+  loop: "{{ nfs_shares }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: nfs_manage_selinux | bool
+
+- name: Appliquer le contexte SELinux (restorecon)
+  command: "restorecon -irv {{ nfs_mount_path }}"
+  register: nfs_restorecon
+  changed_when: '"relabeled" in nfs_restorecon.stdout'
+  when: nfs_manage_selinux | bool
+
+- name: Configurer le service NFS (/etc/nfs.conf)
+  template:
+    src: nfs.conf.j2
+    dest: /etc/nfs.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: restart nfs-server
+
+- name: Configurer le domaine NFSv4 (idmapd)
+  ansible.builtin.lineinfile:
+    path: /etc/idmapd.conf
+    regexp: '^\s*#?\s*Domain\s*='
+    line: "Domain = {{ nfs_domain }}"
+    insertafter: '^\[General\]'
+    create: true
+    mode: "0644"
+  notify: restart nfs-server
+
+- name: Configurer les exports (/etc/exports)
+  template:
+    src: exports.j2
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: reload exports
+
+- name: S'assurer que firewalld est démarré
+  systemd:
+    name: firewalld
+    state: started
+    enabled: true
+  when: nfs_manage_firewall | bool
+
+- name: Ouvrir les services NFS dans le firewall
+  firewalld:
+    service: "{{ item }}"
+    zone: "{{ nfs_firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: [nfs, mountd, rpc-bind]
+  when: nfs_manage_firewall | bool
+
+- name: Ouvrir les ports fixes NFSv3 dans le firewall
+  firewalld:
+    port: "{{ item }}"
+    zone: "{{ nfs_firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "111/tcp"
+    - "111/udp"
+    - "2049/tcp"
+    - "2049/udp"
+    - "{{ nfs_mountd_port }}/tcp"
+    - "{{ nfs_mountd_port }}/udp"
+    - "{{ nfs_statd_port }}/tcp"
+    - "{{ nfs_statd_port }}/udp"
+    - "{{ nfs_lockd_tcp_port }}/tcp"
+    - "{{ nfs_lockd_udp_port }}/udp"
+  when:
+    - nfs_manage_firewall | bool
+    - nfs_enable_v3 | bool
+
+- name: Restreindre l'accès NFS aux réseaux autorisés
+  firewalld:
+    rich_rule: "rule family='ipv4' source address='{{ item }}' service name='nfs' accept"
+    zone: "{{ nfs_firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ nfs_allowed_clients }}"
+  when: nfs_manage_firewall | bool
+
+- name: Activer et démarrer rpcbind
+  systemd:
+    name: rpcbind
+    enabled: true
+    state: started
+
+- name: Activer et démarrer nfs-server
+  systemd:
+    name: nfs-server
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Appliquer les exports
+  command: exportfs -ra
+  changed_when: true
+
+- name: Récupérer les exports actifs
+  command: exportfs -v
+  register: nfs_active_exports
+  changed_when: false
+
+- name: Afficher le récapitulatif du serveur NFS
+  ansible.builtin.debug:
+    msg: >-
+      Serveur NFS {{ fqdn }} ({{ nfs_listen_ip }}) opérationnel sur {{ nfs_mount_path }}.
+      Exports : {{ nfs_active_exports.stdout_lines }}

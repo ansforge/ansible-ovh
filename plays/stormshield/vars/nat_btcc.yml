@@ -1,0 +1,39 @@
+---
+sns_nat_slot: 1
+
+sns_nat_rules_btcc:
+  # Règle NAT 31 - GRP_MSDAS -> IP_PUB_58 -> btcc_prod_ftpssl SSH
+  - action: nat
+    noconnlog: all
+    srctarget: "GRP_MSDAS"
+    srcif: fw-front
+    dsttarget: "IP_PUB_58"
+    dstport: "ssh"
+    beforevpn: "on"
+    natdsttarget: "btcc_prod_ftpssl"
+    natdstarp: "on"
+    rulename: "ID_NAT_31"
+
+  # Règle NAT 32 - hosts + networks -> IP_PUB_58 -> btcc_prod_ftpssl SSH
+  - action: nat
+    noconnlog: all
+    srctarget: "IP_193_70_53_4,IP_193_70_53_5,IP_165_225_20_109,IP_185_111_54_70,IP_185_111_55_131,IP_185_24_185_196,IP_185_24_186_196,IP_185_24_187_196,NET_93_174_144,NET_93_174_145"
+    srcif: fw-front
+    dsttarget: "IP_PUB_58"
+    dstport: "ssh"
+    beforevpn: "on"
+    natdsttarget: "btcc_prod_ftpssl"
+    natdstarp: "on"
+    rulename: "ID_NAT_32"
+
+  # Règle NAT 33 - GRP_BTCC_SRC_33 -> IP_PUB_58 -> btcc_prod_ftpssl GRP_SVC_BTCC
+  - action: nat
+    noconnlog: all
+    srctarget: "GRP_BTCC_SRC_33"
+    srcif: fw-front
+    dsttarget: "IP_PUB_58"
+    dstport: "GRP_SVC_BTCC"
+    beforevpn: "on"
+    natdsttarget: "btcc_prod_ftpssl"
+    natdstarp: "on"
+    rulename: "ID_NAT_33"

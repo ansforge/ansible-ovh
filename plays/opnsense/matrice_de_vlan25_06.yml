@@ -1,0 +1,13 @@
+vlans:
+  - vlan_name: "infra_production_front"
+    vlan_id: "33"
+    vip: "10.0.67.222/27"
+    ip_master: "10.0.67.220"
+    ip_slave: "10.0.67.221"
+    vhid: "33"
+  - vlan_name: "infra_production_vtom"
+    vlan_id: "14"
+    vip: "10.0.66.54/29"
+    ip_master: "10.0.66.52"
+    ip_slave: "10.0.66.53"
+    vhid: "14"

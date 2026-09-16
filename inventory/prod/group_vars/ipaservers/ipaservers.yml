@@ -11,8 +11,54 @@ ipa_server_ip: 10.11.90.13
  
 # Réseaux pour les zones DNS inverses
 ipa_reverse_zones:
-  - 10.11.90.0/24
-  - 10.11.52.0/24
-  - 10.11.70.0/24
-  - 10.11.30.0/24
+  - "90.11.10.in-addr.arpa."
+  - "52.11.10.in-addr.arpa."
+  - "70.11.10.in-addr.arpa."
+  - "30.11.10.in-addr.arpa."
 
+
+# Variables FreeIPA
+freeipa_domain: "{{ ipaserver_domain }}"
+freeipa_realm: "{{ ipaserver_realm }}"
+freeipa_server: "{{ ipa_server_fqdn }}"
+freeipa_admin_user: admin
+freeipa_admin_principal: "admin"
+freeipa_admin_password: "{{ vault_ipaadmin_password }}"
+
+# Sender mail
+mail_sender: "noreply@ans.local"
+
+# Utilisateurs FreeIPA (mot de passe depuis vault)
+freeipa_users:
+  - name: agastine
+    first: Agastine
+    last: User
+    password: "{{ vault_agastine_password }}"
+  - name: kamelk
+    first: Kamel
+    last: K
+    password: "{{ vault_kamelk_password }}"
+  - name: pchandavoin
+    first: P
+    last: Chandavoin
+    password: "{{ vault_pchandavoin_password }}"
+  - name: pferrand
+    first: P
+    last: Ferrand
+    password: "{{ vault_pferrand_password }}"
+  - name: schaabane
+    first: Safouane
+    last: Chaabane
+    password: "{{ vault_schaabane_password }}"
+  - name: tabidi
+    first: T
+    last: Abidi
+    password: "{{ vault_tabidi_password }}"
+  - name: jsessia
+    first: J
+    last: Sessia
+    password: "{{ vault_jsessia_password }}"
+  - name: gdidenot
+    first: G
+    last: Didenot
+    password: "{{ vault_gdidenot_password }}"

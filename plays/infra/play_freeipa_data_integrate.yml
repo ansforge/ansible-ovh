@@ -27,6 +27,8 @@
         last: "{{ item.last }}"
         email: "{{ item.email }}"
         password: "{{ item.password }}"
+        update_password: "{{ item.update_password | default('on_create') }}"      # ← AJOUT
+        passwordexpiration: "{{ item.passwordexpiration | default(omit) }}"  
         state: present
       loop: "{{ ipa_users }}"
       loop_control:

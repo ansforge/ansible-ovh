@@ -1,0 +1,29 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications des mises à jour disponiles (via dnf ou yum)
+#       Famille RedHat (rhel, centos, fedora, alma)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Update][Famille RedHat] Récupérer toutes les mises à jour disponibles sur {{ ansible_facts['pkg_mgr'] }}"
+  ansible.builtin.shell:
+    cmd: |
+      LANG=C {{ ansible_facts['pkg_mgr'] }} updateinfo list updates -q 2>/dev/null \
+      | awk 'NF {print $2, $3}' \
+      | awk '{sub(/-[0-9].*/, "", $2); print}' \
+      | sort -u -k2
+  register: rh_all_updates_list
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts['os_family'] == "RedHat"
+    - ansible_facts['pkg_mgr'] in ["dnf", "yum"]
+
+- name: "[Update][Famille RedHat] Calculer le nombre de mises à jour"
+  ansible.builtin.set_fact:
+    linux_available_updates: "{{ rh_all_updates_list.stdout_lines | length }}"
+    linux_security_updates:  "{{ rh_all_updates_list.stdout_lines | select('search', '/Sec\\.') | list | length }}"
+    linux_critical_updates:  "{{ rh_all_updates_list.stdout_lines | select('search', 'Critical') | list | length }}"
+  when:
+    - ansible_facts['os_family'] == "RedHat"
+    - ansible_facts['pkg_mgr'] in ["dnf", "yum"]

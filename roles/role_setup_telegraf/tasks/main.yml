@@ -1,0 +1,109 @@
+---
+- name: Définir l'URL du proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_url: "http://{{ hostvars[groups['proxy'][0]]['ansible_host'] }}:{{ proxy_port | default(3128) }}"
+  when: proxy_url is not defined
+  tags: [telegraf, install]
+
+- name: Déclarer le dépôt RPM InfluxData
+  ansible.builtin.yum_repository:
+    name: "{{ influxdata_repo_name }}"
+    description: "InfluxData Repository - Stable"
+    baseurl: "{{ influxdata_repo_baseurl }}"
+    gpgcheck: true
+    gpgkey: "{{ influxdata_repo_gpgkey }}"
+    enabled: true
+    proxy: "{{ proxy_url }}"
+  tags: [telegraf, install]
+
+- name: Installer Telegraf et les utilitaires SNMP
+  ansible.builtin.dnf:
+    name: "{{ telegraf_packages }}"
+    state: present
+  environment:
+    http_proxy: "{{ proxy_url }}"
+    https_proxy: "{{ proxy_url }}"
+    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+  notify: restart telegraf
+  tags: [telegraf, install]
+
+# ----------------------------
+# Token d'écriture InfluxDB
+# ----------------------------
+- name: Lire le token d'écriture Telegraf (exécution autonome du rôle)
+  ansible.builtin.slurp:
+    src: "{{ influxdb_token_dir }}/telegraf.token"
+  register: telegraf_token_raw
+  when: influxdb_tokens is not defined
+  no_log: true
+  tags: [telegraf, config]
+
+- name: Mémoriser le token d'écriture Telegraf
+  ansible.builtin.set_fact:
+    telegraf_influxdb_token: >-
+      {{ (influxdb_tokens.telegraf
+          if influxdb_tokens is defined
+          else telegraf_token_raw.content | b64decode) | trim }}
+  no_log: true
+  tags: [telegraf, config]
+
+# ----------------------------
+# Configuration
+# ----------------------------
+- name: Purger la configuration par défaut livrée par le paquet
+  ansible.builtin.file:
+    path: "{{ telegraf_confd_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - telegraf.conf.sample
+  tags: [telegraf, config]
+
+- name: Déployer la configuration principale de Telegraf
+  ansible.builtin.template:
+    src: telegraf.conf.j2
+    dest: "{{ telegraf_config_dir }}/telegraf.conf"
+    owner: root
+    group: telegraf
+    mode: "0640"
+    backup: true
+  notify: restart telegraf
+  tags: [telegraf, config]
+
+- name: Déployer les collecteurs Telegraf
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ telegraf_confd_dir }}/{{ item }}"
+    owner: root
+    group: telegraf
+    mode: "0640"
+    backup: true
+  loop:
+    - snmp_firewalls.conf
+    - ping_firewalls.conf
+    - system_local.conf
+  notify: restart telegraf
+  tags: [telegraf, config]
+
+- name: Valider la syntaxe de la configuration Telegraf
+  ansible.builtin.command:
+    cmd: >-
+      telegraf --config {{ telegraf_config_dir }}/telegraf.conf
+      --config-directory {{ telegraf_confd_dir }}
+      --input-filter internal --test
+  changed_when: false
+  tags: [telegraf, config]
+
+- name: Activer et démarrer Telegraf
+  ansible.builtin.systemd:
+    name: telegraf
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [telegraf, install]
+
+- name: Afficher le récapitulatif Telegraf
+  ansible.builtin.debug:
+    msg:
+      - "Telegraf écrit dans {{ telegraf_influxdb_url }} (bucket {{ telegraf_influxdb_bucket }})"
+      - "Cibles SNMP : {{ telegraf_snmp_targets | map(attribute='name') | join(', ') }}"
+  tags: [telegraf]

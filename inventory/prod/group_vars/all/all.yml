@@ -15,6 +15,7 @@ allowednets:
   - '10.11.52.0/24'
   - '10.11.30.0/24'
   - '10.11.70.0/24'
+  - '10.144.18.6/32'
 
 repo_server_ip: "{{ hostvars[groups['repo'][0]]['ansible_host'] }}"
 
@@ -23,12 +24,22 @@ alma_repos:
   - appstream
   - extras
 
+thirdparty_repos:
+  - wazuh
+
+thirdparty_rpms:
+  - name: wazuh
+    file: wazuh-agent-4.14.0-1.x86_64.rpm
+
 repo_base_path: "/var/www/html/repos"
 
 alma_releases:
  - "9"
  - "10"
 # liste des alias http pour le serveur repo packages alma, dois correspondre au variables repo_http_alias dans les inventory des alma
-repo_http_alias_list:
+repo_http_alma_alias_list:
  - "alma9-repos"
  - "alma10-repos"
+
+repo_http_thirdparty_alias_list:
+ - "thirdparty"

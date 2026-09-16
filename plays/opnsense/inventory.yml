@@ -1,0 +1,28 @@
+---
+all:
+  children:
+    opnsense:
+      vars:
+        ansible_connection: local
+      hosts:
+        opnsense_master:
+          ansible_host: 10.11.90.252
+          opn_api_key: "zf5//lffy+kMfCXULxEUrbeEEmucNpR0bwdD1GaE3IENKWvo12DQLgshG1ZYLAbogtzOabPOxWv4Zzhq"
+          opn_api_secret: "frz/Pn9ogfmQk+/RsI8uxkb5gh9V+it5mqKV3C6s3NMNbnqpd30P2Ze33wL80LuLLfpBz376ury/5/y1"
+          membre: 1
+          advskew: 10
+
+        opnsense_slave:
+          ansible_host: 10.11.90.253
+          opn_api_key: "7lnt/zNgqZ5CQJMlWe3M+LeuQy342e3pxI3bICmDkchapjzNqcQFbrAdIZQnUINOxih/5gOk5ysaBTa8"
+          opn_api_secret: "hyp6YN7M/suSsRRmYiZyfbJxsHYMGTum/MwlrL1zVvTbOyXjzlqUA2pA+Y6MBYCDVnxeWodcn2YYF3te"
+          membre: 2
+          advskew: 200
+
+    fw_master:
+      hosts:
+        opnsense_master:
+
+    fw_slave:
+      hosts:
+        opnsense_slave:

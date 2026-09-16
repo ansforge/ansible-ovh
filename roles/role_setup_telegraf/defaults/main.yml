@@ -1,0 +1,35 @@
+---
+# ── Dépôt RPM InfluxData ─────────────────────────────────────────────────────
+influxdata_repo_name: "influxdata"
+influxdata_repo_baseurl: "https://repos.influxdata.com/stable/$basearch/main"
+influxdata_repo_gpgkey: "https://repos.influxdata.com/influxdata-archive.key"
+
+telegraf_packages:
+  - telegraf
+  - net-snmp-utils
+
+# ── Agent ────────────────────────────────────────────────────────────────────
+telegraf_env: "prod"
+telegraf_interval: "60s"
+telegraf_flush_interval: "30s"
+telegraf_config_dir: /etc/telegraf
+telegraf_confd_dir: /etc/telegraf/telegraf.d
+
+# ── Sortie InfluxDB ──────────────────────────────────────────────────────────
+telegraf_influxdb_url: "http://127.0.0.1:8086"
+telegraf_influxdb_org: "ans"
+telegraf_influxdb_bucket: "supervision"
+influxdb_token_dir: /etc/influxdb/tokens
+
+# ── SNMP ─────────────────────────────────────────────────────────────────────
+telegraf_snmp_version: 3
+telegraf_snmp_timeout: "10s"
+telegraf_snmp_retries: 2
+telegraf_ping_count: 3
+
+# Cibles surchargées dans inventory/prod/group_vars/supervision/supervision.yml
+telegraf_snmp_targets: []
+
+# ── À définir dans vaults/vault_supervision.yml ──────────────────────────────
+# telegraf_snmp_v3_user / _auth_protocol / _auth_password / _priv_protocol / _priv_password
+# telegraf_snmp_community (si repli en v2c)

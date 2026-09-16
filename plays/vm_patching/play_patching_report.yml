@@ -1,0 +1,41 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#
+#   ansible-playbook playbook.yml
+#
+# ────────────────────────────────────────────────────────────────────────────
+
+
+# ─── Play 1 : collecte des données sur toutes les machines ──────────────────
+
+- name: Collecter les données sur toutes les machines
+  hosts: "{{ HOSTS }}"
+  become: true
+  gather_facts: true
+  ignore_unreachable: true
+  strategy: free
+  roles:
+    - role: role_gather_patching_data
+
+
+# ─── Play 2 : génère le rapport CSV ────────────────────────────────────────
+
+- name: Générer le rapport CSV
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/reports"
+    CLIENT:      ""
+    SCOPE:       ""
+    date_now:    "{{ now().strftime('%d%m%Y') }}"
+    report_filename: >-
+      {%- if CLIENT != '' and SCOPE != '' -%}
+        auto_ansible_patching_{{ date_now }}_{{ CLIENT }}_{{ SCOPE }}.csv
+      {%- elif CLIENT != '' -%}
+        auto_ansible_patching_{{ date_now }}_{{ CLIENT }}_all.csv
+      {%- else -%}
+        auto_ansible_patching_{{ date_now }}_all.csv
+      {%- endif -%}
+  roles:
+    - role: build_report

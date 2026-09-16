@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+[global_tags]
+  env = "{{ telegraf_env }}"
+  site = "{{ main_domain | default('ans.local') }}"
+
+[agent]
+  interval = "{{ telegraf_interval }}"
+  round_interval = true
+  metric_batch_size = 1000
+  metric_buffer_limit = 100000
+  collection_jitter = "5s"
+  flush_interval = "{{ telegraf_flush_interval }}"
+  flush_jitter = "5s"
+  precision = ""
+  hostname = "{{ inventory_hostname }}"
+  omit_hostname = false
+  logtarget = "file"
+  logfile = "/var/log/telegraf/telegraf.log"
+  logfile_rotation_max_size = "50MB"
+  logfile_rotation_max_archives = 5
+
+[[outputs.influxdb_v2]]
+  urls = ["{{ telegraf_influxdb_url }}"]
+  token = "{{ telegraf_influxdb_token }}"
+  organization = "{{ telegraf_influxdb_org }}"
+  bucket = "{{ telegraf_influxdb_bucket }}"
+  timeout = "15s"

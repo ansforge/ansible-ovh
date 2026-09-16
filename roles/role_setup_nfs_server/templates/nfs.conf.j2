@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+
+[nfsd]
+threads={{ nfs_threads }}
+vers3={{ 'y' if nfs_enable_v3 | bool else 'n' }}
+vers4=y
+vers4.1=y
+vers4.2=y
+{% if nfs_listen_ip | length > 0 %}
+host={{ nfs_listen_ip }}
+{% endif %}
+
+[mountd]
+port={{ nfs_mountd_port }}
+
+[statd]
+port={{ nfs_statd_port }}
+outgoing-port={{ nfs_statd_out_port }}
+
+[lockd]
+port={{ nfs_lockd_tcp_port }}
+udp-port={{ nfs_lockd_udp_port }}
+
+[nfsdcltrack]
+
+[gssd]
+use-gss-proxy=1

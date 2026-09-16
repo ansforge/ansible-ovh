@@ -1,0 +1,214 @@
+# {{ ansible_managed }}
+# Collecte SNMP des firewalls front — OID numériques (aucune dépendance MIB).
+# Stormshield SNS : OID privés .1.3.6.1.4.1.11256 (doc officielle SNS "Using specific OIDs")
+# OPNsense        : UCD-SNMP-MIB .1.3.6.1.4.1.2021 (plugin os-net-snmp requis)
+{% for fw in telegraf_snmp_targets %}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# {{ fw.name }} — {{ fw.type }} ({{ fw.host }})
+# ─────────────────────────────────────────────────────────────────────────────
+[[inputs.snmp]]
+  name = "fw"
+  agents = ["udp://{{ fw.host }}:{{ fw.snmp_port | default(161) }}"]
+  interval = "{{ fw.interval | default(telegraf_interval) }}"
+  timeout = "{{ telegraf_snmp_timeout }}"
+  retries = {{ telegraf_snmp_retries }}
+  agent_host_tag = "agent_host"
+{% if (fw.snmp_version | default(telegraf_snmp_version)) | int == 3 %}
+  version = 3
+  sec_name = "{{ telegraf_snmp_v3_user }}"
+  sec_level = "{{ fw.snmp_sec_level | default('authPriv') }}"
+  auth_protocol = "{{ telegraf_snmp_v3_auth_protocol }}"
+  auth_password = "{{ telegraf_snmp_v3_auth_password }}"
+  priv_protocol = "{{ telegraf_snmp_v3_priv_protocol }}"
+  priv_password = "{{ telegraf_snmp_v3_priv_password }}"
+{% else %}
+  version = 2
+  community = "{{ telegraf_snmp_community }}"
+{% endif %}
+
+  [inputs.snmp.tags]
+    fw_name = "{{ fw.name }}"
+    fw_type = "{{ fw.type }}"
+    fw_role = "{{ fw.role | default('firewall') }}"
+
+  # ── Identité (SNMPv2-MIB) ──────────────────────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "sys_name"
+    oid = ".1.3.6.1.2.1.1.5.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name = "sys_descr"
+    oid = ".1.3.6.1.2.1.1.1.0"
+  [[inputs.snmp.field]]
+    name = "sys_uptime_ticks"
+    oid = ".1.3.6.1.2.1.1.3.0"
+
+  # ── Charge / mémoire (UCD-SNMP-MIB) ────────────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "load1"
+    oid = ".1.3.6.1.4.1.2021.10.1.3.1"
+    conversion = "float"
+  [[inputs.snmp.field]]
+    name = "load5"
+    oid = ".1.3.6.1.4.1.2021.10.1.3.2"
+    conversion = "float"
+  [[inputs.snmp.field]]
+    name = "load15"
+    oid = ".1.3.6.1.4.1.2021.10.1.3.3"
+    conversion = "float"
+  [[inputs.snmp.field]]
+    name = "mem_total_kb"
+    oid = ".1.3.6.1.4.1.2021.4.5.0"
+  [[inputs.snmp.field]]
+    name = "mem_avail_kb"
+    oid = ".1.3.6.1.4.1.2021.4.6.0"
+{% if fw.type == 'stormshield' %}
+
+  # ── Stormshield SNS — informations générales ───────────────────────────────
+  [[inputs.snmp.field]]
+    name = "sns_hostname"
+    oid = ".1.3.6.1.4.1.11256.1.0.1.0"
+    is_tag = true
+  [[inputs.snmp.field]]
+    name = "sns_version"
+    oid = ".1.3.6.1.4.1.11256.1.0.2.0"
+  [[inputs.snmp.field]]
+    name = "sns_serial"
+    oid = ".1.3.6.1.4.1.11256.1.0.3.0"
+  [[inputs.snmp.field]]
+    name = "sns_uptime"
+    oid = ".1.3.6.1.4.1.11256.1.10.2.0"
+
+  # ── Stormshield SNS — haute disponibilité ──────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "ha_mode"
+    oid = ".1.3.6.1.4.1.11256.1.16.2.1.3.0"
+  [[inputs.snmp.field]]
+    name = "ha_link_health"
+    oid = ".1.3.6.1.4.1.11256.1.16.2.1.4.0"
+
+  # ── Stormshield SNS — politiques ───────────────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "filter_policy"
+    oid = ".1.3.6.1.4.1.11256.1.8.1.1.3.1"
+  [[inputs.snmp.field]]
+    name = "ipsec_policy"
+    oid = ".1.3.6.1.4.1.11256.1.8.1.1.3.2"
+
+  # ── Stormshield SNS — tunnels IPsec ────────────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "vpn_spd_in"
+    oid = ".1.3.6.1.4.1.11256.1.13.1.1.0"
+  [[inputs.snmp.field]]
+    name = "vpn_spd_out"
+    oid = ".1.3.6.1.4.1.11256.1.13.1.2.0"
+  [[inputs.snmp.field]]
+    name = "vpn_tunnels_mature"
+    oid = ".1.3.6.1.4.1.11256.1.13.2.2.0"
+  [[inputs.snmp.field]]
+    name = "vpn_tunnels_dying"
+    oid = ".1.3.6.1.4.1.11256.1.13.2.3.0"
+  [[inputs.snmp.field]]
+    name = "vpn_tunnels_dead"
+    oid = ".1.3.6.1.4.1.11256.1.13.2.4.0"
+
+  # ── Stormshield SNS — disques / (index 31) et /log (index 35) ──────────────
+  [[inputs.snmp.field]]
+    name = "disk_root_total"
+    oid = ".1.3.6.1.2.1.25.2.3.1.5.31"
+  [[inputs.snmp.field]]
+    name = "disk_root_used"
+    oid = ".1.3.6.1.2.1.25.2.3.1.6.31"
+  [[inputs.snmp.field]]
+    name = "disk_log_total"
+    oid = ".1.3.6.1.2.1.25.2.3.1.5.35"
+  [[inputs.snmp.field]]
+    name = "disk_log_used"
+    oid = ".1.3.6.1.2.1.25.2.3.1.6.35"
+{% endif %}
+{% if fw.type == 'opnsense' %}
+
+  # ── OPNsense — CPU / swap (UCD-SNMP-MIB) ───────────────────────────────────
+  [[inputs.snmp.field]]
+    name = "cpu_user"
+    oid = ".1.3.6.1.4.1.2021.11.9.0"
+  [[inputs.snmp.field]]
+    name = "cpu_system"
+    oid = ".1.3.6.1.4.1.2021.11.10.0"
+  [[inputs.snmp.field]]
+    name = "cpu_idle"
+    oid = ".1.3.6.1.4.1.2021.11.11.0"
+  [[inputs.snmp.field]]
+    name = "swap_total_kb"
+    oid = ".1.3.6.1.4.1.2021.4.3.0"
+  [[inputs.snmp.field]]
+    name = "swap_avail_kb"
+    oid = ".1.3.6.1.4.1.2021.4.4.0"
+{% endif %}
+
+  # ── Interfaces (IF-MIB / ifXTable, compteurs 64 bits) ──────────────────────
+  [[inputs.snmp.table]]
+    name = "fw_interface"
+    inherit_tags = ["sys_name"]
+    [[inputs.snmp.table.field]]
+      name = "if_name"
+      oid = ".1.3.6.1.2.1.31.1.1.1.1"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "if_alias"
+      oid = ".1.3.6.1.2.1.31.1.1.1.18"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "if_admin_status"
+      oid = ".1.3.6.1.2.1.2.2.1.7"
+    [[inputs.snmp.table.field]]
+      name = "if_oper_status"
+      oid = ".1.3.6.1.2.1.2.2.1.8"
+    [[inputs.snmp.table.field]]
+      name = "if_speed"
+      oid = ".1.3.6.1.2.1.31.1.1.1.15"
+    [[inputs.snmp.table.field]]
+      name = "if_in_octets"
+      oid = ".1.3.6.1.2.1.31.1.1.1.6"
+    [[inputs.snmp.table.field]]
+      name = "if_out_octets"
+      oid = ".1.3.6.1.2.1.31.1.1.1.10"
+    [[inputs.snmp.table.field]]
+      name = "if_in_errors"
+      oid = ".1.3.6.1.2.1.2.2.1.14"
+    [[inputs.snmp.table.field]]
+      name = "if_out_errors"
+      oid = ".1.3.6.1.2.1.2.2.1.20"
+    [[inputs.snmp.table.field]]
+      name = "if_in_discards"
+      oid = ".1.3.6.1.2.1.2.2.1.13"
+    [[inputs.snmp.table.field]]
+      name = "if_out_discards"
+      oid = ".1.3.6.1.2.1.2.2.1.19"
+
+  # ── CPU par cœur (HOST-RESOURCES-MIB hrProcessorLoad) ──────────────────────
+  [[inputs.snmp.table]]
+    name = "fw_cpu"
+    index_as_tag = true
+    [[inputs.snmp.table.field]]
+      name = "cpu_load"
+      oid = ".1.3.6.1.2.1.25.3.3.1.2"
+
+  # ── Systèmes de fichiers (HOST-RESOURCES-MIB hrStorage) ────────────────────
+  [[inputs.snmp.table]]
+    name = "fw_storage"
+    [[inputs.snmp.table.field]]
+      name = "storage_descr"
+      oid = ".1.3.6.1.2.1.25.2.3.1.3"
+      is_tag = true
+    [[inputs.snmp.table.field]]
+      name = "storage_units"
+      oid = ".1.3.6.1.2.1.25.2.3.1.4"
+    [[inputs.snmp.table.field]]
+      name = "storage_size"
+      oid = ".1.3.6.1.2.1.25.2.3.1.5"
+    [[inputs.snmp.table.field]]
+      name = "storage_used"
+      oid = ".1.3.6.1.2.1.25.2.3.1.6"
+{% endfor %}

@@ -1,0 +1,65 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    role pour linux 
+# ────────────────────────────────────────────────────────────────────────────
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#    Valeurs par défaut - si la machine est injoignable
+#    Définitions des valeurs si la version ou la distribution ne sont pas
+#       supportées pour le moment
+#    (voir les versions supportées : roles/linux/vars/main.yml)
+# ────────────────────────────────────────────────────────────────────────────
+
+- name: Définir les valeurs par défaut
+  ansible.builtin.set_fact:
+    linux_available_updates: "Not supported"
+    linux_security_updates:  "Not supported"
+    linux_critical_updates:  "Not supported"
+    linux_last_patch_date:   "Not supported"
+    linux_reboot_pending:    "Not supported"
+    linux_last_boot:         "Not supported"
+    host_report_data:
+      name:              "{{ inventory_hostname }}"
+      os:                "Unreachable"
+      available_updates: "NA"
+      security_updates:  "NA"
+      critical_updates:  "NA"
+      last_checkin:      "{{ now().strftime('%d/%m/%Y %H:%M:%S') }}"
+      last_patch_date:   "NA"
+      reboot_pending:    "NA"
+      last_boot:         "NA"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#    Lancement des playbooks en fonction de la distribution
+# ────────────────────────────────────────────────────────────────────────────
+
+#- name: Tâches pour la distribution RedHat
+#  ansible.builtin.include_tasks: RedHat.yml
+#  when: 
+#    - ansible_facts['distribution'] in ['RedHat']
+#    - ansible_facts['distribution_major_version'] in redhat_supported_versions
+
+- name: Tâches pour la distribution AlmaLinux
+  ansible.builtin.include_tasks: AlmaLinux.yml
+  when:
+    - ansible_facts['distribution'] in ['AlmaLinux']
+    - ansible_facts['distribution_major_version'] in almalinux_supported_versions
+
+# ────────────────────────────────────────────────────────────────────────────
+#    Regroupement des informations récupérées via les différentes tâches
+# ────────────────────────────────────────────────────────────────────────────
+
+- name: Regrouper toutes les données dans Ansible facts
+  ansible.builtin.set_fact:
+    host_report_data:
+      name:              "{{ ansible_facts['hostname'] }}"
+      os:                "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+      available_updates: "{{ linux_available_updates }}"
+      security_updates:  "{{ linux_security_updates }}"
+      critical_updates:  "{{ linux_critical_updates }}"
+      last_checkin:      "{{ now().strftime('%d/%m/%Y %H:%M:%S') }}"
+      last_patch_date:   "{{ linux_last_patch_date.stdout | default(linux_last_patch_date) }}"
+      reboot_pending:    "{{ linux_reboot_pending }}"
+      last_boot:         "{{ linux_last_boot.stdout | default(linux_last_boot) }}"

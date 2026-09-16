@@ -1,0 +1,25 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Tâches spécifiques aux machines OracleLinux
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[OracleLinux] Vérifier les mises à jour de sécurité manquantes sur cette machine"
+  ansible.builtin.include_role:
+    name: checks
+    tasks_from: check_updates_rh.yml
+
+- name: "[OracleLinux] Vérifier si un redémarrage est en attente"
+  ansible.builtin.include_role:
+    name: checks
+    tasks_from: check_reboot_rh.yml
+
+- name: "[OracleLinux] Vérifier quand le dernier correctif a été appliqué"
+  ansible.builtin.include_role:
+    name: checks
+    tasks_from: check_patch_history_rh.yml
+
+- name: "[OracleLinux] Vérifier la date du dernier démarrage"
+  ansible.builtin.include_role:
+    name: checks
+    tasks_from: check_last_boot.yml

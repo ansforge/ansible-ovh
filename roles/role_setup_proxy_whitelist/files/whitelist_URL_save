@@ -1,0 +1,15 @@
+# Whitelist Squid
+.google.fr
+.google.com
+.youtube.com
+.github.com
+# Repos AlmaLinux
+.almalinux.org
+.repo.almalinux.org
+.mirrors.almalinux.org
+# EPEL
+.fedoraproject.org
+# OVH NTP
+.ovh.net
+
+

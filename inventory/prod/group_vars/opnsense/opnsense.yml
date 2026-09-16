@@ -1,0 +1,3 @@
+---
+opn_ssl_verify: false
+opn_timeout: 30

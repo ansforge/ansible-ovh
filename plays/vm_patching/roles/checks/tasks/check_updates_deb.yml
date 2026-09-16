@@ -1,0 +1,25 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications des mises à jour disponiles (via apt)
+#       Famille Debian (debian, ubuntu)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Update][Famille Debian] Mettre à jour le cache des paquets apt"
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: "[Update][Famille Debian] Lister toutes les mises à jour disponibles"
+  ansible.builtin.shell:
+    cmd: apt-get --just-print upgrade 2>/dev/null | grep "^Inst" || true
+  register: apt_all_updates_list
+  changed_when: false
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: "[Update][Famille Debian] Définir le nombre de mises à jour"
+  ansible.builtin.set_fact:
+    linux_available_updates: "{{ apt_all_updates_list.stdout_lines | length }}"
+    linux_security_updates:  "{{ apt_all_updates_list.stdout_lines | select('search', '(?i)security') | list | length }}"
+  when: ansible_facts['os_family'] == "Debian"

@@ -1,0 +1,12 @@
+sns_appliances:
+  hosts:
+    fw-stormshield:
+      ansible_connection: local
+      force_modify: true
+      appliance:
+        host: 10.11.20.251
+        user: "admin"
+        password: 'Azerty01!'
+        sslverifyhost: false
+        sslverifypeer: false
+      sns_object_ignore_errors: true

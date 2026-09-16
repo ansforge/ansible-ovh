@@ -1,0 +1,5 @@
+{# report.csv.j2 #}
+Computer Name,Operating System,Available Updates,Security Updates,Date Last Check-in,Date Last Patch,Reboot Required,Date Last Boot
+{% for host in all_report_data %}
+{{ host.name }},{{ host.os }},{{ host.available_updates }},{{ host.security_updates }},{{ host.last_checkin }},{{ host.last_patch_date }},{{ host.reboot_pending }},{{ host.last_boot }}
+{% endfor %}

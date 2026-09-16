@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Configuration InfluxDB 2.x - infra-prod-sup01
+bolt-path: {{ influxdb_data_dir }}/influxd.bolt
+engine-path: {{ influxdb_data_dir }}/engine
+http-bind-address: "{{ influxdb_bind_address }}"
+log-level: info
+reporting-disabled: true
+query-concurrency: 10
+query-queue-size: 20
+storage-retention-check-interval: 30m
+storage-wal-fsync-delay: 0s
+session-length: 60

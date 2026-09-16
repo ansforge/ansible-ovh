@@ -1,0 +1,17 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications si la machine nécessite un redémarrage (Debian)
+#       Famille Debian (debian, ubuntu)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Reboot][Famille Debian] Vérifier l'existence du fichier reboot-required"
+  ansible.builtin.stat:
+    path: /run/reboot-required
+  register: deb_reboot_file
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: "[Reboot][Famille Debian] Définir le statut de redémarrage"
+  ansible.builtin.set_fact:
+    linux_reboot_pending: "{{ deb_reboot_file.stat.exists }}"
+  when: ansible_facts['os_family'] == "Debian"

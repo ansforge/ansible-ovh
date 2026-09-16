@@ -1,0 +1,11 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications de la date du dernier démarrage
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Last boot] Récupérer la date et l'heure du dernier démarrage"
+  ansible.builtin.shell: date -d "$(uptime -s)" '+%d/%m/%Y %H:%M:%S'
+  register: linux_last_boot
+  changed_when: false
+  when: ansible_facts['os_family'] in ["Debian", "RedHat"]

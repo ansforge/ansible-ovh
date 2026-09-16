@@ -1,0 +1,16 @@
+---
+- name: Install Wazuh on AlmaLinux
+  hosts: "{{ HOSTS }}"
+  become: true
+  vars:
+    wazuh_manager_address: 10.10.0.110
+    wazuh_registration_password: "Enroll#85X"
+
+    wazuh_full_version: "4.14.0"
+    wazuh_package_revision: "1"
+
+    wazuh_agent_validate_certs: false
+
+    wazuh_agent_x86_64_rpm: "https://10.11.90.12/thirdparty/wazuh/wazuh-agent-4.14.0-1.x86_64.rpm"
+  roles:
+    - role_wazuh_agent

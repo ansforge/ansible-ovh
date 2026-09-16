@@ -1,0 +1,276 @@
+---
+# ----------------------------
+# Proxy
+# ----------------------------
+- name: Définir l'URL du proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_url: "http://{{ hostvars[groups['proxy'][0]]['ansible_host'] }}:{{ proxy_port | default(3128) }}"
+  when: proxy_url is not defined
+  tags: [influxdb, install]
+
+- name: Configurer le proxy dans dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: "^proxy="
+    line: "proxy={{ proxy_url }}"
+    insertafter: "[main]"
+    state: present
+  tags: [influxdb, install]
+
+# ----------------------------
+# Dépôt InfluxData
+# ----------------------------
+- name: Déclarer le dépôt RPM InfluxData
+  ansible.builtin.yum_repository:
+    name: "{{ influxdata_repo_name }}"
+    description: "InfluxData Repository - Stable"
+    baseurl: "{{ influxdata_repo_baseurl }}"
+    gpgcheck: true
+    gpgkey: "{{ influxdata_repo_gpgkey }}"
+    enabled: true
+    proxy: "{{ proxy_url }}"
+  tags: [influxdb, install]
+
+# ----------------------------
+# Filesystem dédié aux TSM
+# ----------------------------
+- name: Vérifier la présence du disque de données
+  ansible.builtin.stat:
+    path: "{{ influxdb_disk_device }}"
+  register: influxdb_disk
+  tags: [influxdb, install]
+
+- name: Préparer le système de fichiers du disque de données
+  community.general.filesystem:
+    fstype: "{{ influxdb_disk_fstype }}"
+    dev: "{{ influxdb_disk_device }}"
+  when: influxdb_disk.stat.exists
+  tags: [influxdb, install]
+
+- name: Créer le point de montage des données InfluxDB
+  ansible.builtin.file:
+    path: "{{ influxdb_data_dir }}"
+    state: directory
+    mode: "0750"
+  tags: [influxdb, install]
+
+- name: Monter la partition de données InfluxDB
+  ansible.builtin.mount:
+    path: "{{ influxdb_data_dir }}"
+    src: "{{ influxdb_disk_device }}"
+    fstype: "{{ influxdb_disk_fstype }}"
+    opts: defaults,noatime
+    state: mounted
+  when: influxdb_disk.stat.exists
+  tags: [influxdb, install]
+
+# ----------------------------
+# Installation
+# ----------------------------
+- name: Installer InfluxDB 2.x
+  ansible.builtin.dnf:
+    name: "{{ influxdb_packages }}"
+    state: present
+  environment:
+    http_proxy: "{{ proxy_url }}"
+    https_proxy: "{{ proxy_url }}"
+    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+  notify: restart influxdb
+  tags: [influxdb, install]
+
+- name: Appliquer les droits sur le répertoire de données
+  ansible.builtin.file:
+    path: "{{ influxdb_data_dir }}"
+    state: directory
+    owner: influxdb
+    group: influxdb
+    mode: "0750"
+  tags: [influxdb, install]
+
+- name: Déployer la configuration InfluxDB
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "{{ influxdb_config_file }}"
+    owner: influxdb
+    group: influxdb
+    mode: "0640"
+    backup: true
+  notify: restart influxdb
+  tags: [influxdb, config]
+
+- name: Activer et démarrer InfluxDB
+  ansible.builtin.systemd:
+    name: influxdb
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [influxdb, install]
+
+- name: Forcer l'application de la configuration avant l'initialisation
+  ansible.builtin.meta: flush_handlers
+  tags: [influxdb, config]
+
+- name: Attendre que l'API InfluxDB réponde
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/health"
+    status_code: 200
+  register: influxdb_health
+  retries: 30
+  delay: 2
+  until: influxdb_health.status == 200
+  tags: [influxdb, config]
+
+# ----------------------------
+# Initialisation (org / bucket / token admin)
+# ----------------------------
+- name: Vérifier si l'instance est déjà initialisée
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/setup"
+    method: GET
+    return_content: true
+  register: influxdb_setup_state
+  tags: [influxdb, config]
+
+- name: Initialiser l'organisation, le bucket et le token admin
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/setup"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ influxdb_admin_user }}"
+      password: "{{ influxdb_admin_password }}"
+      org: "{{ influxdb_org }}"
+      bucket: "{{ influxdb_bucket }}"
+      retentionPeriodSeconds: "{{ influxdb_retention_days | int * 86400 }}"
+      token: "{{ influxdb_admin_token }}"
+    status_code: 201
+  when: influxdb_setup_state.json.allowed | bool
+  no_log: true
+  tags: [influxdb, config]
+
+- name: Récupérer l'identifiant de l'organisation
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/orgs?org={{ influxdb_org }}"
+    headers:
+      Authorization: "Token {{ influxdb_admin_token }}"
+    return_content: true
+  register: influxdb_org_info
+  no_log: true
+  tags: [influxdb, config]
+
+- name: Récupérer l'identifiant du bucket
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/buckets?name={{ influxdb_bucket }}"
+    headers:
+      Authorization: "Token {{ influxdb_admin_token }}"
+    return_content: true
+  register: influxdb_bucket_info
+  no_log: true
+  tags: [influxdb, config]
+
+- name: Mémoriser les identifiants org / bucket
+  ansible.builtin.set_fact:
+    influxdb_org_id: "{{ influxdb_org_info.json.orgs[0].id }}"
+    influxdb_bucket_id: "{{ influxdb_bucket_info.json.buckets[0].id }}"
+  tags: [influxdb, config]
+
+- name: Ajuster la rétention du bucket
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/buckets/{{ influxdb_bucket_id }}"
+    method: PATCH
+    headers:
+      Authorization: "Token {{ influxdb_admin_token }}"
+    body_format: json
+    body:
+      retentionRules:
+        - type: expire
+          everySeconds: "{{ influxdb_retention_days | int * 86400 }}"
+    status_code: 200
+  no_log: true
+  tags: [influxdb, config]
+
+# ----------------------------
+# Tokens applicatifs (telegraf / grafana)
+# ----------------------------
+- name: Créer le répertoire des tokens applicatifs
+  ansible.builtin.file:
+    path: "{{ influxdb_token_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [influxdb, config]
+
+- name: Vérifier les tokens applicatifs déjà générés
+  ansible.builtin.stat:
+    path: "{{ influxdb_token_dir }}/{{ item.name }}.token"
+  loop: "{{ influxdb_app_tokens }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: influxdb_token_files
+  tags: [influxdb, config]
+
+- name: Créer les autorisations InfluxDB manquantes
+  ansible.builtin.uri:
+    url: "{{ influxdb_url }}/api/v2/authorizations"
+    method: POST
+    headers:
+      Authorization: "Token {{ influxdb_admin_token }}"
+    body_format: json
+    body:
+      orgID: "{{ influxdb_org_id }}"
+      description: "{{ item.item.description }}"
+      permissions: "{{ influxdb_perms | from_json }}"
+    status_code: 201
+  vars:
+    influxdb_perms: >-
+      [{% for a in item.item.actions %}{"action":"{{ a }}","resource":{"type":"buckets","id":"{{ influxdb_bucket_id }}","orgID":"{{ influxdb_org_id }}"}}{% if not loop.last %},{% endif %}{% endfor %}]
+  loop: "{{ influxdb_token_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+  register: influxdb_new_tokens
+  no_log: true
+  tags: [influxdb, config]
+
+- name: Enregistrer les tokens applicatifs générés
+  ansible.builtin.copy:
+    content: "{{ item.json.token }}"
+    dest: "{{ influxdb_token_dir }}/{{ item.item.item.name }}.token"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ influxdb_new_tokens.results }}"
+  loop_control:
+    label: "{{ item.item.item.name }}"
+  when: not (item.skipped | default(false))
+  no_log: true
+  tags: [influxdb, config]
+
+- name: Lire les tokens applicatifs
+  ansible.builtin.slurp:
+    src: "{{ influxdb_token_dir }}/{{ item.name }}.token"
+  loop: "{{ influxdb_app_tokens }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: influxdb_token_content
+  no_log: true
+  tags: [influxdb, config, telegraf, grafana]
+
+- name: Exposer les tokens applicatifs aux autres rôles
+  ansible.builtin.set_fact:
+    influxdb_tokens: >-
+      {{ dict(influxdb_app_tokens | map(attribute='name') | list
+         | zip(influxdb_token_content.results | map(attribute='content')
+         | map('b64decode') | map('trim') | list)) }}
+  no_log: true
+  tags: [influxdb, config, telegraf, grafana]
+
+- name: Afficher le récapitulatif InfluxDB
+  ansible.builtin.debug:
+    msg:
+      - "InfluxDB 2.x opérationnel sur {{ influxdb_url }}"
+      - "Organisation : {{ influxdb_org }} (id {{ influxdb_org_id }})"
+      - "Bucket       : {{ influxdb_bucket }} (rétention {{ influxdb_retention_days }} j)"
+      - "Tokens       : {{ influxdb_token_dir }}/{telegraf,grafana}.token"
+  tags: [influxdb]

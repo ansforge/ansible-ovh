@@ -1,0 +1,25 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications si la machine nécessite un redémarrage (RedHat)
+#       Famille RedHat (rhel, centos, fedora, alma)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Reboot][Famille RedHat] Vérifier l'existence du package yum-utils pour needs-restarting"
+  ansible.builtin.package:
+    name: yum-utils
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: "[Reboot][Famille RedHat] Vérifier si un redémarrage est nécessaire"
+  ansible.builtin.command:
+    cmd: needs-restarting -r
+  register: rh_reboot_check
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: "[Reboot][Famille RedHat] Définir le statut de redémarrage"
+  ansible.builtin.set_fact:
+    linux_reboot_pending: "{{ rh_reboot_check.rc == 1 }}"
+  when: ansible_facts['os_family'] == "RedHat"

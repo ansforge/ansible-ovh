@@ -1,0 +1,37 @@
+---
+nfs_packages:
+  - nfs-utils
+  - rpcbind
+  - lvm2
+  - policycoreutils-python-utils
+
+# Stockage
+nfs_disk_devices: []
+nfs_vg_name: vg_nfs
+nfs_lv_name: lv_nfs
+nfs_lv_size: 100%FREE
+nfs_fs_type: xfs
+nfs_mount_path: /srv/nfs
+nfs_mount_opts: "defaults,noatime,nofail"
+
+# Service
+nfs_listen_ip: ""
+nfs_domain: "{{ main_domain }}"
+nfs_threads: 16
+nfs_enable_v3: true
+
+# Ports fixes NFSv3 (indispensables derrière firewalld)
+nfs_mountd_port: 20048
+nfs_statd_port: 32765
+nfs_statd_out_port: 32766
+nfs_lockd_tcp_port: 32803
+nfs_lockd_udp_port: 32769
+
+# Exports
+nfs_allowed_clients: "{{ allowednets | default(['10.11.90.0/24']) }}"
+nfs_shares: []
+
+# Firewall / SELinux
+nfs_manage_firewall: true
+nfs_firewall_zone: public
+nfs_manage_selinux: true

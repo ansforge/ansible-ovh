@@ -61,3 +61,11 @@ ipa_users:
     password: "{{ vault_gdidenot_password }}"
     groups:
       - gr-infra-admin-preprod
+
+  - name: mkhebbache
+    first: Mohammed
+    last: KHEBBACHE
+    email: mohammed.khebbache@atos.net
+    password: "{{ vault_mkhebbache_password }}"
+    groups:
+      - gr-infra-admin-preprod

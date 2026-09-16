@@ -1,0 +1,10 @@
+---
+sns_filter_slot: 1
+
+sns_filter_rules_rpps:
+  - action: pass
+    srctarget: any
+    dsttarget: "IP_PUB_14"
+    ipproto: TCP
+    dstport: "SVC_RPPS_10000,SVC_RPPS_10001,SVC_RPPS_10002,SVC_RPPS_10003"
+    rulename: "ID_72_rpps_prod"

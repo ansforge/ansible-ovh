@@ -1,0 +1,7 @@
+ansible_host: 10.11.90.17
+fqdn: infra-prod-nfs01.ans.local
+
+# Disques Terraform : 2 x 300 Go (extra_disks nfs01_data01 / nfs01_data02)
+nfs_disk_devices:
+  - /dev/sdb
+  - /dev/sdc

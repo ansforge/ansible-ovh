@@ -1,8 +1,6 @@
 # Whitelist Squid
-.google.fr
-.google.com
-.youtube.com
 .github.com
+.pypi.org
 # Repos AlmaLinux
 .almalinux.org
 .repo.almalinux.org
@@ -11,5 +9,17 @@
 .fedoraproject.org
 # OVH NTP
 .ovh.net
-
+# Others
+.ifconfig.me
+.vault.test.pfccloudovh.esante.gouv.fr
+.vault.pfccloudovh.esante.gouv.fr
+.semaphore.ans.local
+.registry.terraform.io
+releases.hashicorp.com
+checkpoint-api.hashicorp.com
+.api.ovh.com
+.eu.api.ovh.com
+.auth.cloud.ovh.net
+.ansible.com
+ansible-galaxy-ng.s3.dualstack.us-east-1.amazonaws.com
 

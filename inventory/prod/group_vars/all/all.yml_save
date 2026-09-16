@@ -1,0 +1,34 @@
+---
+main_domain: ans.local
+repo_server_fqdn: "infra-prod-repo01.{{ main_domain }}"
+
+ntpservers:
+  - ntp.ovh.net
+  - 0.europe.pool.ntp.org
+
+nameservers:
+  - '213.186.33.99'
+  - '86.54.11.100'
+
+allowednets:
+  - '10.11.90.0/24'
+  - '10.11.52.0/24'
+  - '10.11.30.0/24'
+  - '10.11.70.0/24'
+
+repo_server_ip: "{{ hostvars[groups['repo'][0]]['ansible_host'] }}"
+
+alma_repos:
+  - baseos
+  - appstream
+  - extras
+
+repo_base_path: "/var/www/html/repos"
+
+alma_releases:
+ - "9"
+ - "10"
+# liste des alias http pour le serveur repo packages alma, dois correspondre au variables repo_http_alias dans les inventory des alma
+repo_http_alias_list:
+ - "alma9-repos"
+ - "alma10-repos"

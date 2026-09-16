@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+# Métriques locales de la VM de supervision infra-prod-sup01.
+[[inputs.cpu]]
+  percpu = false
+  totalcpu = true
+  collect_cpu_time = false
+  report_active = true
+
+[[inputs.mem]]
+
+[[inputs.swap]]
+
+[[inputs.system]]
+
+[[inputs.processes]]
+
+[[inputs.disk]]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay", "aufs", "squashfs"]
+
+[[inputs.diskio]]
+
+[[inputs.net]]
+
+[[inputs.systemd_units]]
+  unittype = "service"
+  pattern = "influxdb.service grafana-server.service telegraf.service"
+
+[[inputs.internal]]
+  collect_memstats = false

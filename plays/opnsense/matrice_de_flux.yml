@@ -1,0 +1,12 @@
+flux:
+  - id: 63
+    src:
+      - name: "prod-igc-master01"
+        ip: "10.0.4.170"
+    dst:
+      - name: "prod-igc-master01"
+        ip: "10.0.4.170"
+    proto: "tcp"
+    ports: [22]
+    category: "MIE_PROD"
+

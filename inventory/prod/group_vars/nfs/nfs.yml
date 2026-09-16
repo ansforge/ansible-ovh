@@ -1,0 +1,25 @@
+---
+# Adresse d'écoute du service NFS
+nfs_listen_ip: "{{ hostvars[groups['nfs'][0]]['ansible_host'] }}"
+
+# Clients autorisés — reprend allowednets (group_vars/all).
+# Le filtrage réseau est réalisé en amont par l'infrastructure réseau.
+nfs_allowed_clients: "{{ allowednets }}"
+
+# Firewall local désactivé :
+# le filtrage des flux NFS est assuré par le firewall réseau.
+nfs_manage_firewall: false
+
+# Partages NFS exposés
+nfs_shares:
+  - path: /srv/nfs/wallix
+    owner: nobody
+    group: nobody
+    mode: "0777"
+    options: "rw,sync,no_subtree_check,no_root_squash,no_all_squash"
+
+  - path: /srv/nfs/backup
+    owner: nobody
+    group: nobody
+    mode: "0777"
+    options: "rw,sync,no_subtree_check,no_root_squash,no_all_squash"

@@ -1,0 +1,68 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/objects.yml
+    - ../vars/services.yml
+
+  tasks:
+    - name: "Création des hosts"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          {% for h in sns_hosts %}
+          CONFIG OBJECT HOST NEW update=1 name={{ h.name }} ip={{ h.ip }} comment="{{ h.comment }}"
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      failed_when: false
+
+    - name: "Création des networks"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          {% for n in sns_networks %}
+          CONFIG OBJECT NETWORK NEW update=1 name={{ n.name }} ip={{ n.ip }} mask={{ n.mask }} comment="{{ n.comment }}"
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      failed_when: false
+
+    - name: "Création des groupes"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          {% for g in sns_netgroups %}
+          CONFIG OBJECT GROUP NEW update=1 name={{ g.name }}
+          {% for m in g.members %}
+          CONFIG OBJECT GROUP ADDTO group={{ g.name }} node={{ m }}
+          {% endfor %}
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      failed_when: false
+
+    - name: "Création des services"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          {% for s in sns_services %}
+          CONFIG OBJECT SERVICE NEW update=1 name={{ s.name }} proto={{ s.proto }} port={{ s.port }}
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      failed_when: false
+
+    - name: "Création des groupes de services"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          {% for g in sns_service_groups %}
+          CONFIG OBJECT SERVICEGROUP NEW name={{ g.name }}
+          {% for m in g.members %}
+          CONFIG OBJECT SERVICEGROUP ADDTO group={{ g.name }} node={{ m }}
+          {% endfor %}
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      failed_when: false

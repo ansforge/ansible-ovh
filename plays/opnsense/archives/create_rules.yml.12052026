@@ -1,0 +1,568 @@
+---
+# ---------------------------------------------------------------------------
+# create_rules.yml
+# Applique uniquement sur opnsense_master (synchro CARP vers slave)
+# Usage : ansible-playbook -i inventory.yml create_rules.yml
+# ---------------------------------------------------------------------------
+
+- name: Creation regles firewall OPNsense
+  hosts: opnsense_master
+  gather_facts: false
+
+  vars_files:
+    - matrice_de_flux.yml
+
+  vars:
+    api_host: "{{ ansible_host }}"
+    api_key: "{{ opn_api_key }}"
+    api_secret: "{{ opn_api_secret }}"
+    opn_ssl_verify: false
+    opn_timeout: 30
+
+  tasks:
+
+    # -----------------------------------------------------------------------
+    # CATEGORIES
+    # -----------------------------------------------------------------------
+    - name: "Recuperation des categories existantes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/category/searchItem?limit=1000"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_categories
+
+    - name: "Collecte des noms de categories uniques depuis la matrice"
+      ansible.builtin.set_fact:
+        categories_needed: "{{ flux | map(attribute='category') | list | unique }}"
+
+    - name: "Creation des categories manquantes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/category/addItem"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          category:
+            name: "{{ item }}"
+            color: ""
+      loop: "{{ categories_needed }}"
+      when: item not in (existing_categories.json.rows | map(attribute='name') | list)
+      register: created_categories
+
+    - name: "Refresh categories apres creation"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/category/searchItem?limit=1000"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: all_categories
+
+    - name: "Construction du mapping categorie -> UUID"
+      ansible.builtin.set_fact:
+        cat_map: "{{ all_categories.json.rows | items2dict(key_name='name', value_name='uuid') }}"
+
+    # -----------------------------------------------------------------------
+    # ALIAS HOSTS / NETWORKS
+    # -----------------------------------------------------------------------
+    - name: "Recuperation de tous les alias existants"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/searchItem?limit=1000"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_aliases
+
+    - name: "Construction du mapping IP -> alias_name"
+      ansible.builtin.set_fact:
+        ip_map: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | selectattr('type', 'in', ['host', 'network'])
+              | map(attribute='content')
+              | map('split', '\n')
+              | sum(start=[])
+              | map('trim')
+              | select
+              | zip(
+                  existing_aliases.json.rows
+                  | selectattr('type', 'in', ['host', 'network'])
+                  | map(attribute='name')
+                )
+            )
+          }}
+
+    - name: "Construction du mapping alias_name -> {uuid, content}"
+      ansible.builtin.set_fact:
+        alias_name_map: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | map(attribute='name')
+              | zip(existing_aliases.json.rows)
+            )
+          }}
+
+    - name: "Collecte de tous les objets uniques depuis la matrice"
+      ansible.builtin.set_fact:
+        all_objects: >-
+          {{
+            flux
+            | map(attribute='src') | sum(start=[])
+            + flux | map(attribute='dst') | sum(start=[])
+          }}
+
+    - name: "Deduplication des objets par IP"
+      ansible.builtin.set_fact:
+        unique_objects: "{{ all_objects | unique(attribute='ip') }}"
+
+    - name: "Creation des alias manquants"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/addItem"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          alias:
+            name: "{{ item.name | replace('-', '_') | replace('.', '_') }}"
+            type: "{{ 'network' if '/' in item.ip else 'host' }}"
+            content: "{{ item.ip }}"
+            description: "{{ item.name }}"
+      loop: "{{ unique_objects }}"
+      when:
+        - item.ip != 'any'
+        - item.ip not in ip_map
+        - (item.name | replace('-', '_') | replace('.', '_')) not in alias_name_map
+      register: created_aliases
+
+    - name: "Ajout IP a un alias existant de meme nom"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/setItem/{{ alias_name_map[item.name | replace('-', '_') | replace('.', '_')]['uuid'] }}"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          alias:
+            content: "{{ alias_name_map[item.name | replace('-', '_') | replace('.', '_')]['content'] + '\n' + item.ip }}"
+      loop: "{{ unique_objects }}"
+      when:
+        - item.ip != 'any'
+        - item.ip not in ip_map
+        - (item.name | replace('-', '_') | replace('.', '_')) in alias_name_map
+        - item.ip not in alias_name_map[item.name | replace('-', '_') | replace('.', '_')]['content']
+
+    - name: "Application des alias"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: created_aliases.changed or created_aliases.results | selectattr('changed') | list | length > 0
+
+    # -----------------------------------------------------------------------
+    # ALIAS PORTS
+    # -----------------------------------------------------------------------
+    - name: "Construction du mapping port -> alias_name (alias exact 1 port)"
+      ansible.builtin.set_fact:
+        port_map: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | selectattr('type', 'equalto', 'port')
+              | selectattr('content', 'match', '^[0-9]+$')
+              | map(attribute='content') | map('int')
+              | zip(
+                  existing_aliases.json.rows
+                  | selectattr('type', 'equalto', 'port')
+                  | selectattr('content', 'match', '^[0-9]+$')
+                  | map(attribute='name')
+                )
+            )
+          }}
+
+    - name: "Collecte des ports uniques depuis la matrice"
+      ansible.builtin.set_fact:
+        all_ports: "{{ flux | map(attribute='ports') | sum(start=[]) | unique | list }}"
+
+    - name: "Creation des alias ports manquants"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/addItem"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          alias:
+            name: "port_{{ item }}"
+            type: "port"
+            content: "{{ item | string }}"
+            description: "port {{ item }}"
+      loop: "{{ all_ports }}"
+      when: item not in port_map
+      register: created_ports
+
+    - name: "Application des alias ports"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: created_ports.changed
+
+    - name: "Refresh alias apres creation ports"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/searchItem?limit=1000"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_aliases
+
+    - name: "Refresh port_map apres creation"
+      ansible.builtin.set_fact:
+        port_map: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | selectattr('type', 'equalto', 'port')
+              | selectattr('content', 'match', '^[0-9]+$')
+              | map(attribute='content') | map('int')
+              | zip(
+                  existing_aliases.json.rows
+                  | selectattr('type', 'equalto', 'port')
+                  | selectattr('content', 'match', '^[0-9]+$')
+                  | map(attribute='name')
+                )
+            )
+          }}
+
+    - name: "Creation des alias ports groupes (multi-ports)"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/addItem"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          alias:
+            name: "port_{{ item.ports | sort | join('_') }}"
+            type: "port"
+            content: "{{ item.ports | sort | map('extract', port_map) | join('\n') }}"
+            description: "ports {{ item.ports | sort | join('_') }}"
+      loop: "{{ flux }}"
+      when: item.ports | length > 1
+      register: created_port_groups
+
+    - name: "Application alias ports groupes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      when: created_port_groups.changed
+
+    # -----------------------------------------------------------------------
+    # REFRESH FINAL + CONSTRUCTION IP_MAP
+    # -----------------------------------------------------------------------
+    - name: "Refresh final des alias"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/alias/searchItem?limit=1000"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_aliases
+
+    - name: "Reconstruction ip_map final"
+      ansible.builtin.set_fact:
+        ip_map_final: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | selectattr('type', 'in', ['host', 'network'])
+              | map(attribute='content')
+              | map('split', '\n')
+              | sum(start=[])
+              | map('trim')
+              | select
+              | zip(
+                  existing_aliases.json.rows
+                  | selectattr('type', 'in', ['host', 'network'])
+                  | map(attribute='name')
+                )
+            )
+          }}
+
+    - name: "Reconstruction port_map final"
+      ansible.builtin.set_fact:
+        port_map_final: >-
+          {{
+            dict(
+              existing_aliases.json.rows
+              | selectattr('type', 'equalto', 'port')
+              | selectattr('content', 'match', '^[0-9]+$')
+              | map(attribute='content') | map('int')
+              | zip(
+                  existing_aliases.json.rows
+                  | selectattr('type', 'equalto', 'port')
+                  | selectattr('content', 'match', '^[0-9]+$')
+                  | map(attribute='name')
+                )
+            )
+          }}
+
+    # -----------------------------------------------------------------------
+    # REGLES FIREWALL
+    # -----------------------------------------------------------------------
+    - name: "Recuperation des regles existantes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/filter/searchRule?limit=9999"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_rules
+
+    - name: "Construction du mapping regles existantes (description+cat -> regle complete)"
+      ansible.builtin.set_fact:
+        existing_rules_set: >-
+          {{
+            existing_rules.json.rows
+            | map(attribute='description')
+            | zip(existing_rules.json.rows | map(attribute='categories'))
+            | map('join', '|')
+            | list
+          }}
+        existing_rules_map: >-
+          {{
+            dict(
+              existing_rules.json.rows
+              | map(attribute='description')
+              | zip(existing_rules.json.rows | map(attribute='categories'))
+              | map('join', '|')
+              | zip(existing_rules.json.rows)
+            )
+          }}
+
+    - name: "Creation des regles firewall"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/filter/addRule"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          rule:
+            enabled: "1"
+            action: "pass"
+            quick: "1"
+            interface: ""
+            direction: "in"
+            ipprotocol: "inet"
+            protocol: "{{ item.proto }}"
+            source_net: >-
+              {{
+                'any'
+                if item.src | map(attribute='ip') | first == 'any'
+                else item.src
+                  | map(attribute='name')
+                  | map('replace', '-', '_')
+                  | map('replace', '.', '_')
+                  | list | unique | join(',')
+              }}
+            source_not: "0"
+            source_port: ""
+            destination_net: >-
+              {{
+                item.dst
+                  | map(attribute='name')
+                  | map('replace', '-', '_')
+                  | map('replace', '.', '_')
+                  | list | unique | join(',')
+              }}
+            destination_not: "0"
+            destination_port: >-
+              {{
+                port_map_final[item.ports[0]]
+                if item.ports | length == 1
+                else 'port_' + (item.ports | sort | join('_'))
+              }}
+            log: "1"
+            description: "ID {{ item.id }}"
+            categories: "{{ cat_map[item.category] }}"
+            replyto: "{{ item.replyto | default('') }}"
+      loop: "{{ flux }}"
+      when: >-
+        ('ID ' + item.id | string + '|' + cat_map[item.category])
+        not in existing_rules_set
+        and (item.delete is not defined or not item.delete)
+      register: created_rules
+
+    - name: "Modification des regles existantes si contenu different"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/filter/setRule/{{ existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['uuid'] }}"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          rule:
+            enabled: "1"
+            action: "pass"
+            quick: "1"
+            interface: ""
+            direction: "in"
+            ipprotocol: "inet"
+            protocol: "{{ item.proto }}"
+            source_net: >-
+              {{
+                'any'
+                if item.src | map(attribute='ip') | first == 'any'
+                else item.src
+                  | map(attribute='name')
+                  | map('replace', '-', '_')
+                  | map('replace', '.', '_')
+                  | list | unique | join(',')
+              }}
+            source_not: "0"
+            source_port: ""
+            destination_net: >-
+              {{
+                item.dst
+                  | map(attribute='name')
+                  | map('replace', '-', '_')
+                  | map('replace', '.', '_')
+                  | list | unique | join(',')
+              }}
+            destination_not: "0"
+            destination_port: >-
+              {{
+                port_map_final[item.ports[0]]
+                if item.ports | length == 1
+                else 'port_' + (item.ports | sort | join('_'))
+              }}
+            log: "1"
+            description: "ID {{ item.id }}"
+            categories: "{{ cat_map[item.category] }}"
+            replyto: "{{ item.replyto | default('') }}"
+      loop: "{{ flux }}"
+      when: >-
+        ('ID ' + item.id | string + '|' + cat_map[item.category]) in existing_rules_set
+        and (item.delete is not defined or not item.delete)
+        and (
+          existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['source_net']
+          != (
+            'any' if item.src | map(attribute='ip') | first == 'any'
+            else item.src | map(attribute='name') | map('replace', '-', '_') | map('replace', '.', '_') | list | unique | join(',')
+          )
+          or
+          existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['destination_net']
+          != (item.dst | map(attribute='name') | map('replace', '-', '_') | map('replace', '.', '_') | list | unique | join(','))
+          or
+          existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['destination_port'] | lower
+          != (
+            port_map_final[item.ports[0]]
+            if item.ports | length == 1
+            else 'port_' + (item.ports | sort | join('_'))
+          ) | lower
+          or
+          existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['protocol'] | lower
+          != item.proto | lower
+        )
+      register: updated_rules
+
+    # -----------------------------------------------------------------------
+    # SUPPRESSION DES REGLES MARQUEES delete: true
+    # -----------------------------------------------------------------------
+    - name: "Suppression des regles marquees delete"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/filter/delRule/{{ existing_rules_map['ID ' + item.id | string + '|' + cat_map[item.category]]['uuid'] }}"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+      loop: "{{ flux }}"
+      when:
+        - item.delete is defined
+        - item.delete == true
+        - ('ID ' + item.id | string + '|' + cat_map[item.category]) in existing_rules_set
+      register: deleted_rules
+
+    - name: "Application des regles"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/firewall/filter/apply"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+
+    - name: "Resume"
+      ansible.builtin.debug:
+        msg: >-
+          {{ created_rules.results | selectattr('json', 'defined') | selectattr('json.result', 'equalto', 'saved') | list | length }} creee(s),
+          {{ created_rules.results | selectattr('skipped', 'defined') | selectattr('skipped') | list | length }} skippee(s),
+          {{ updated_rules.results | selectattr('json', 'defined') | selectattr('json.result', 'equalto', 'saved') | list | length }} modifiee(s),
+          {{ deleted_rules.results | selectattr('json', 'defined') | selectattr('json.result', 'equalto', 'deleted') | list | length }} supprimee(s)"

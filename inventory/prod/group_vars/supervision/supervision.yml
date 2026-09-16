@@ -1,0 +1,40 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# infra-prod-sup01 — plateforme de supervision
+# ─────────────────────────────────────────────────────────────────────────────
+telegraf_env: "prod"
+telegraf_interval: "60s"
+
+influxdb_org: "ans"
+influxdb_bucket: "supervision"
+influxdb_retention_days: 90
+influxdb_disk_device: /dev/sdb
+
+telegraf_influxdb_org: "{{ influxdb_org }}"
+telegraf_influxdb_bucket: "{{ influxdb_bucket }}"
+
+grafana_influxdb_org: "{{ influxdb_org }}"
+grafana_influxdb_bucket: "{{ influxdb_bucket }}"
+grafana_http_port: 3000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cibles SNMP — firewalls front supervisés
+#   host  : IP joignable depuis 10.11.90.15 (interface d'administration du FW)
+#   type  : stormshield | opnsense  (pilote les OID privés collectés)
+# ─────────────────────────────────────────────────────────────────────────────
+telegraf_snmp_targets:
+  - name: infra-prod-fwfe01
+    host: 10.11.20.251
+    type: stormshield
+    role: master
+
+  - name: infra-outils-opnsense01
+    host: 10.16.51.254
+    type: opnsense
+    role: firewall
+
+  # Second nœud du cluster Stormshield — décommenter si supervisé :
+  # - name: infra-prod-fwfe02
+  #   host: 10.11.20.252
+  #   type: stormshield
+  #   role: slave

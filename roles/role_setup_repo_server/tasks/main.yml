@@ -6,7 +6,28 @@
     line: "proxy={{ proxy_ip }}:{{ proxy_port }}"
     insertafter: "[main]"
     state: present
-  
+ 
+- name: Configurer EPEL pour utiliser dl.fedoraproject.org
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/epel.repo
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [epel]
+      name=Extra Packages for Enterprise Linux 10 - $basearch
+      baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/
+      enabled=1
+      gpgcheck=1
+      repo_gpgcheck=0
+      gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-10
+      metadata_expire=24h
+      countme=0
+
+- name: Nettoyer le cache DNF
+  ansible.builtin.command: dnf clean all
+  changed_when: false
+
 - name: Installer les outils nécessaires (dnf-utils, createrepo, httpd, selinux utils)
   dnf:
     name:
@@ -35,14 +56,14 @@
     state: mounted
     opts: defaults
 
-- name: Créer les répertoires pour chacune des versions d alma
+- name: Créer les répertoires pour chacun des dépôts
   file:
     path: "{{ repo_base_path }}/{{ item }}"
     state: directory
     owner: apache
     group: apache
     mode: "0755"
-  loop: "{{ repo_http_alias_list }}"
+  loop: "{{ repo_http_alma_alias_list + repo_http_thirdparty_alias_list }}"
       
 - name: Créer les sous-répertoires pour les dépôts (baseos, appstream, etc.)
   file:
@@ -51,7 +72,12 @@
     owner: apache
     group: apache
     mode: "0755"
-  loop: "{{ repo_http_alias_list | product(alma_repos) }}"
+  loop: >-
+    {{
+      (repo_http_alma_alias_list | product(alma_repos) | list)
+      +
+      (repo_http_thirdparty_alias_list | product(thirdparty_repos) | list)
+    }}
 
 #- name: Créer les répertoires pour les dépôts (baseos, appstream, etc.)
 #  file:
@@ -121,10 +147,19 @@
     dest: /usr/local/bin/sync_repos.sh
     mode: "0755"
 
-- name: Lancer la synchronisation initiale (Peut prendre du temps)
+- name: Lancer la synchronisation initiale des dépôts Alma (Peut prendre du temps)
   command: /usr/local/bin/sync_repos.sh
   args:
     creates: "{{ repo_base_path }}/baseos/repodata"
+
+- name: Copier les RPM dans les dépôts thirdparty
+  ansible.builtin.copy:
+    src: "files/{{ item.file }}"
+    dest: "{{ repo_base_path }}/thirdparty/{{ item.name }}/{{ item.file }}"
+    owner: apache
+    group: apache
+    mode: "0644"
+  loop: "{{ thirdparty_rpms }}"
 
 #- name: Planifier la synchronisation Cron (02h00)
 #  cron:

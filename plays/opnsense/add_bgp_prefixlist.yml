@@ -1,0 +1,183 @@
+---
+# ---------------------------------------------------------------------------
+# add_bgp_prefixlist.yml
+# Ajoute des entrées dans la prefix-list BGP "Prefix_ANS" sur OPNsense
+# Applique uniquement sur opnsense_master (synchro CARP vers slave)
+# Usage : ansible-playbook -i inventory.yml add_bgp_prefixlist.yml
+# ---------------------------------------------------------------------------
+
+- name: BGP Prefix-list | Ajout annonces dans Prefix_ANS
+  hosts: opnsense_master
+  gather_facts: false
+
+  vars_files:
+    - bgp_prefixes.yml
+
+  vars:
+    api_host: "{{ ansible_host }}"
+    api_key: "{{ opn_api_key }}"
+    api_secret: "{{ opn_api_secret }}"
+    opn_ssl_verify: false
+    opn_timeout: 30
+
+  tasks:
+
+    # -----------------------------------------------------------------------
+    # LECTURE DES ENTREES EXISTANTES
+    # -----------------------------------------------------------------------
+    - name: "Recuperation des prefix-list BGP existantes"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/quagga/bgp/searchPrefixlist"
+        method: GET
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+      register: existing_prefixlists
+
+    - name: "Construction de la liste des networks existants dans Prefix_ANS"
+      ansible.builtin.set_fact:
+        existing_networks: >-
+          {{
+            existing_prefixlists.json.rows
+            | selectattr('name', 'equalto', 'Prefix_ANS')
+            | map(attribute='network')
+            | list
+          }}
+        max_seq: >-
+          {{
+            existing_prefixlists.json.rows
+            | selectattr('name', 'equalto', 'Prefix_ANS')
+            | map(attribute='seqnumber')
+            | map('int')
+            | list
+            | max
+            | default(0)
+          }}
+
+    - name: "Sequence max actuelle dans Prefix_ANS"
+      ansible.builtin.debug:
+        msg: "Sequence max existante : {{ max_seq }} — prochain depart : {{ max_seq | int + 1 }}"
+
+    # -----------------------------------------------------------------------
+    # CALCUL DES ENTREES A CREER (idempotence)
+    # -----------------------------------------------------------------------
+    - name: "Filtrage des prefixes non encore presents"
+      ansible.builtin.set_fact:
+        prefixes_to_add: >-
+          {{
+            new_prefixes
+            | rejectattr('network', 'in', existing_networks)
+            | list
+          }}
+
+    - name: "Aucun prefix a ajouter"
+      ansible.builtin.debug:
+        msg: "Tous les prefixes sont deja presents dans Prefix_ANS — rien a faire."
+      when: prefixes_to_add | length == 0
+
+    - name: "Prefixes qui seront ajoutes"
+      ansible.builtin.debug:
+        msg: "{{ prefixes_to_add | length }} prefix(es) a ajouter : {{ prefixes_to_add | map(attribute='network') | list }}"
+      when: prefixes_to_add | length > 0
+
+    # -----------------------------------------------------------------------
+    # CONSTRUCTION DES SEQUENCES DYNAMIQUES
+    # -----------------------------------------------------------------------
+    - name: "Attribution des numeros de sequence"
+      ansible.builtin.set_fact:
+        prefixes_with_seq: >-
+          {{
+            prefixes_with_seq | default([]) + [{
+              'network': item.network,
+              'seq':     (max_seq | int) + 1 + (index * 1)
+            }]
+          }}
+      loop: "{{ prefixes_to_add }}"
+      loop_control:
+        index_var: index
+        label: "{{ item.network }}"
+      when: prefixes_to_add | length > 0
+
+    - name: "Recapitulatif des sequences attribuees"
+      ansible.builtin.debug:
+        msg: "SEQ {{ entry.seq }} -> {{ entry.network }}"
+      loop: "{{ prefixes_with_seq | default([]) }}"
+      loop_control:
+        loop_var: entry
+        label: "{{ entry.network }}"
+      when: prefixes_to_add | length > 0
+
+    # -----------------------------------------------------------------------
+    # CREATION DES ENTREES PREFIX-LIST
+    # -----------------------------------------------------------------------
+    - name: "Ajout prefix-list BGP : {{ entry.network }} (seq {{ entry.seq }})"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/quagga/bgp/addPrefixlist"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body:
+          prefixlist:
+            enabled:     "1"
+            name:        "Prefix_ANS"
+            seqnumber:   "{{ entry.seq }}"
+            action:      "permit"
+            network:     "{{ entry.network }}"
+            description: "Prefix_ANS"
+            version:     "IPv4"
+        status_code: [200, 201]
+        return_content: true
+      loop: "{{ prefixes_with_seq | default([]) }}"
+      loop_control:
+        loop_var: entry
+        label: "SEQ {{ entry.seq }} | {{ entry.network }}"
+      register: add_results
+      failed_when: >-
+        add_results is failed
+        and 'already exists' not in (add_results.json.validations | default({}) | string)
+      when: prefixes_to_add | length > 0
+
+    # -----------------------------------------------------------------------
+    # VERIFICATION
+    # -----------------------------------------------------------------------
+    - name: "Verification des resultats d'ajout"
+      ansible.builtin.debug:
+        msg: >-
+          {{ entry.entry.network }} (seq {{ entry.entry.seq }}) ->
+          {{ (entry.content | from_json).result | default('unknown') }}
+      loop: "{{ add_results.results | default([]) }}"
+      loop_control:
+        loop_var: entry
+        label: "{{ entry.entry.network }}"
+      when: prefixes_to_add | length > 0
+
+    # -----------------------------------------------------------------------
+    # APPLY — reconfigure FRR/BGP
+    # -----------------------------------------------------------------------
+    - name: "Application de la configuration BGP (reconfigure)"
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}/api/quagga/service/reconfigure"
+        method: POST
+        url_username: "{{ api_key }}"
+        url_password: "{{ api_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ opn_ssl_verify }}"
+        timeout: "{{ opn_timeout }}"
+        body_format: json
+        body: {}
+        status_code: [200]
+      register: apply_result
+      when: >-
+        prefixes_to_add | length > 0
+        and add_results.results | default([]) | selectattr('status', 'equalto', 200) | list | length > 0
+
+    - name: "Resultat apply BGP"
+      ansible.builtin.debug:
+        msg: "Reconfigure BGP -> {{ (apply_result.content | from_json).result | default('ok') }}"
+      when: apply_result is not skipped

@@ -13,12 +13,28 @@
   ansible.builtin.include_role:
     name: freeipa.ansible_freeipa.ipaserver
   vars:
-    ipaadmin_password: "{{ vault_ipaadmin_password }}"
-    ipadm_password: "{{ vault_ipadm_password }}"
+    ipaadmin_password: "{{ freeipa_admin_password }}"
+    ipadm_password: "{{ vault_ipadm_password | default(omit) }}"
 
 - name: Create Reverse Zones
   freeipa.ansible_freeipa.ipadnszone:
-    ipaadmin_password: "{{ vault_ipaadmin_password }}"
-    name: "{{ item | ansible.utils.ipaddr('revdns') | regex_replace('^0\\.', '') }}"
+    ipaadmin_password: "{{ freeipa_admin_password }}"
+    ipaadmin_principal: "{{ freeipa_admin_principal }}@{{ freeipa_realm }}"
+    name: "{{ item }}"
     state: present
   loop: "{{ ipa_reverse_zones }}"
+
+- name: Créer les utilisateurs dans FreeIPA
+  freeipa.ansible_freeipa.ipauser:
+    ipaadmin_principal: "{{ freeipa_admin_principal }}@{{ freeipa_realm }}"
+    ipaadmin_password: "{{ freeipa_admin_password }}"
+    name: "{{ item.name }}"
+    first: "{{ item.first | default(item.name) }}"
+    last: "{{ item.last | default('User') }}"
+    state: present
+    password: "{{ item.password }}"
+    update_password: on_create
+  loop: "{{ freeipa_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true

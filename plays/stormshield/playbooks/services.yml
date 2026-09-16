@@ -1,0 +1,29 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/services.yml
+
+  tasks:
+    - name: "Création des objets services"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          {% for svc in sns_services %}
+          CONFIG OBJECT SERVICE NEW update=1 name={{ svc.name }} proto={{ svc.proto }} port={{ svc.port }}
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      ignore_errors: true
+
+    - name: "Création des groupes de services"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          {% for grp in sns_service_groups %}
+          CONFIG OBJECT SERVICEGROUP NEW name={{ grp.name }}
+          {% for member in grp.members %}
+          CONFIG OBJECT SERVICEGROUP ADDTO group={{ grp.name }} node={{ member }}
+          {% endfor %}
+          {% endfor %}
+          CONFIG OBJECT ACTIVATE
+      ignore_errors: true

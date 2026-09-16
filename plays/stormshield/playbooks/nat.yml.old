@@ -1,0 +1,25 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/nat_rules.yml
+
+  tasks:
+    # -----------------------------------------------------------
+    # ÉTAPE 1 : Créer le séparateur mie_prod dans la NAT
+    # -----------------------------------------------------------
+    - name: "Créer séparateur mie_prod (NAT)"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          CONFIG FILTER RULE ADDSEP index={{ sns_nat_slot }} type=nat color=00b0ca comment=mie_prod collapse=0
+
+  roles:
+    # -----------------------------------------------------------
+    # ÉTAPE 2 : Déploiement règles NAT (mode add)
+    # -----------------------------------------------------------
+    - role: stormshield.sns.sns_policy
+      slot: "{{ sns_nat_slot }}"
+      mode: add
+      activate: yes
+      nat: "{{ sns_nat_rules }}"

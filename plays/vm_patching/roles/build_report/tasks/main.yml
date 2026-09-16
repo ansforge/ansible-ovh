@@ -1,0 +1,29 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    role pour build le rapport avec les données des machines 
+# ────────────────────────────────────────────────────────────────────────────
+
+- name: Rassembler les données de tous les hôtes dans une liste unique
+  ansible.builtin.set_fact:
+    all_report_data: >-
+      {{ groups['all'] |
+         map('extract', hostvars, 'host_report_data') |
+         select('defined') |
+         list }}
+
+- name: Créer le dossier reports si inexistant
+  ansible.builtin.file:
+    path: "{{ reports_dir }}"
+    state: directory
+    mode: '0755'
+  run_once: true
+
+- name: Écrire le fichier CSV du rapport
+  ansible.builtin.template:
+    src: report.csv.j2
+    dest: "{{ reports_dir }}/{{ report_filename }}"
+    mode: '0644'
+
+- name: Afficher l'emplacement du rapport
+  ansible.builtin.debug:
+    msg: "Rapport sauvegardé dans : {{ reports_dir }}/{{ report_filename }}"

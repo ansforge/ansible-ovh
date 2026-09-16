@@ -1,0 +1,8 @@
+---
+sns_services:
+  - { name: SVC_RPPS_10000, proto: tcp, port: 10000 }
+  - { name: SVC_RPPS_10001, proto: tcp, port: 10001 }
+  - { name: SVC_RPPS_10002, proto: tcp, port: 10002 }
+  - { name: SVC_RPPS_10003, proto: tcp, port: 10003 }
+
+sns_service_groups: []

@@ -1,0 +1,70 @@
+---
+sns_filter_slot: 1
+
+sns_filter_rules:
+  # Règle 1 - ANS -> IP_PUB_52 LDAP+LDAPS
+  - { action: pass, srctarget: "ANS", dsttarget: "IP_PUB_52", ipproto: TCP, dstport: "SVC_LDAP,SVC_LDAPS", comment: "ID 01 mie_prod", rulename: "ANS_LDAP_LDAPS" }
+
+  # Règle 2 - Any -> IP_PUB_52 LDAP
+  - { action: pass, srctarget: any, dsttarget: "IP_PUB_52", ipproto: TCP, dstport: "SVC_LDAP", comment: "ID 02 mie_prod", rulename: "ANY_LDAP_52" }
+
+  # Règle 3 - Any -> IP_PUB_56 LDAP
+  - { action: pass, srctarget: any, dsttarget: "IP_PUB_56", ipproto: TCP, dstport: "SVC_LDAP", comment: "ID 03 mie_prod", rulename: "ANY_LDAP_56" }
+
+  # Règle 4 - ANS + IMPRIMERIENATIONALE -> IP_PUB_54 LDAPS
+  - { action: pass, srctarget: "ANS,IMPRIMERIENATIONALE", dsttarget: "IP_PUB_54", ipproto: TCP, dstport: "SVC_LDAPS", comment: "ID 04 mie_prod", rulename: "ANS_IMPNAT_LDAPS" }
+
+  # Règle 5 - ANS + GRP_CDN + GRP_CDN_TEST -> IP_PUB_50 HTTP
+  - { action: pass, srctarget: "ANS,GRP_CDN,GRP_CDN_TEST", dsttarget: "IP_PUB_50", ipproto: TCP, dstport: "http", comment: "ID 05 mie_prod", rulename: "CDN_HTTP" }
+
+  # Règle 6 - DREES + INSEE -> IP_PUB_48 CFT ports
+  - { action: pass, srctarget: "DREES,INSEE", dsttarget: "IP_PUB_48", ipproto: TCP, dstport: "SVC_CFT_1765,SVC_CFT_1766,SVC_CFT_1767", comment: "ID 06 mie_prod", rulename: "DREES_INSEE_CFT" }
+
+  # Règle 7 - INSEE -> IP_PUB_48 CFT 1770
+  - { action: pass, srctarget: "INSEE", dsttarget: "IP_PUB_48", ipproto: TCP, dstport: "SVC_CFT_1770", comment: "ID 07 mie_prod", rulename: "INSEE_CFT_1770" }
+
+  # Règle 8a - cps_prod_cft01 -> GRP_VPN_IMPNATIONAL TCP 1768+1868
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "GRP_VPN_IMPNATIONAL", ipproto: TCP, dstport: "SVC_CFT_1768,SVC_CFT_1868", comment: "ID 08a mie_prod", rulename: "CFT_VPN_IMPNAT_TCP" }
+
+  # Règle 8b - cps_prod_cft01 -> GRP_VPN_IMPNATIONAL ICMP
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "GRP_VPN_IMPNATIONAL", ipproto: ICMP, comment: "ID 08b mie_prod", rulename: "CFT_VPN_IMPNAT_ICMP" }
+
+  # Règle 9 - cps_prod_cft01 -> CNAMSAFE_27
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "CNAMSAFE_27", ipproto: TCP, dstport: "SVC_CNAMSAFE", comment: "ID 09 mie_prod", rulename: "CFT_CNAMSAFE_27" }
+
+  # Règle 10 - cps_prod_cft01 -> CNAMSAFE_28
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "CNAMSAFE_28", ipproto: TCP, dstport: "SVC_CNAMSAFE", comment: "ID 10 mie_prod", rulename: "CFT_CNAMSAFE_28" }
+
+  # Règle 11 - cps_prod_cft01 -> INSEE CFT 1761
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "INSEE", ipproto: TCP, dstport: "SVC_CFT_1761", comment: "ID 11 mie_prod", rulename: "CFT_INSEE_1761" }
+
+  # Règle 12 - cps_prod_cft01 -> GRP_IMPNATIONAL CFT 1868
+  - { action: pass, srctarget: "cps_prod_cft01", dsttarget: "GRP_IMPNATIONAL", ipproto: TCP, dstport: "SVC_CFT_1868", comment: "ID 12 mie_prod", rulename: "CFT_IMPNAT_1868" }
+
+# ============================================================
+# BTCC_PROD
+# ============================================================
+sns_filter_rules_btcc:
+  # Règle 31 - GRP_MSDAS -> IP_PUB_58 SSH
+  - action: pass
+    srctarget: "GRP_MSDAS"
+    dsttarget: "IP_PUB_58"
+    ipproto: TCP
+    dstport: "ssh"
+    rulename: "ID_31_btcc_prod"
+
+  # Règle 32 - hosts standalone + networks -> IP_PUB_58 SSH
+  - action: pass
+    srctarget: "IP_193_70_53_4,IP_193_70_53_5,IP_165_225_20_109,IP_185_111_54_70,IP_185_111_55_131,IP_185_24_185_196,IP_185_24_186_196,IP_185_24_187_196,NET_93_174_144,NET_93_174_145"
+    dsttarget: "IP_PUB_58"
+    ipproto: TCP
+    dstport: "ssh"
+    rulename: "ID_32_btcc_prod"
+
+  # Règle 33 - hosts standalone -> IP_PUB_58 SSH+HTTPS+5000-5010
+  - action: pass
+    srctarget: "GRP_BTCC_SRC_33"
+    dsttarget: "IP_PUB_58"
+    ipproto: TCP
+    dstport: "GRP_SVC_BTCC"
+    rulename: "ID_33_btcc_prod"

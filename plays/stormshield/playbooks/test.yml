@@ -1,0 +1,20 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  environment:
+    no_proxy: "localhost,127.0.0.1,10.11.90.0/24,10.11.30.0/24,10.11.20.0/24"
+    NO_PROXY: "localhost,127.0.0.1,10.11.90.0/24,10.11.30.0/24,10.11.20.0/24"
+
+  tasks:
+    - name: Test connexion Stormshield
+      stormshield.sns.sns_command:
+        appliance:
+          host: 10.11.20.251
+          user: ansible_api
+          password: 'Azerty01!'
+          sslverifyhost: false
+        command: "CONFIG STATUS"
+      register: result
+
+    - debug:
+        var: result

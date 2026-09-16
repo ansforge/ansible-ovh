@@ -1,0 +1,7 @@
+---
+sns_hosts:
+  - { name: rpps_prod_rp01, ip: 10.0.5.115, comment: "rpps_prod - rpps-prod-rp01" }
+
+sns_networks: []
+
+sns_netgroups: []

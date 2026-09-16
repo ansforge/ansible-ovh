@@ -1,0 +1,38 @@
+---
+# ── Dépôt RPM InfluxData ─────────────────────────────────────────────────────
+influxdata_repo_name: "influxdata"
+influxdata_repo_baseurl: "https://repos.influxdata.com/stable/$basearch/main"
+influxdata_repo_gpgkey: "https://repos.influxdata.com/influxdata-archive.key"
+
+# ── Service ──────────────────────────────────────────────────────────────────
+influxdb_packages:
+  - influxdb2
+  - influxdb2-cli
+influxdb_bind_address: "127.0.0.1:8086"
+influxdb_url: "http://127.0.0.1:8086"
+influxdb_config_file: /etc/influxdb/config.yml
+
+# ── Stockage (disque additionnel Terragrunt : extra_disk_gb = 200) ───────────
+influxdb_data_dir: /var/lib/influxdb
+influxdb_disk_device: /dev/sdb
+influxdb_disk_fstype: xfs
+
+# ── Organisation / bucket ────────────────────────────────────────────────────
+influxdb_org: "ans"
+influxdb_bucket: "supervision"
+influxdb_retention_days: 90
+influxdb_admin_user: "admin"
+
+# ── Tokens applicatifs générés puis stockés localement (0600, root) ──────────
+influxdb_token_dir: /etc/influxdb/tokens
+influxdb_app_tokens:
+  - name: telegraf
+    description: "telegraf - write supervision"
+    actions: ["write"]
+  - name: grafana
+    description: "grafana - read supervision"
+    actions: ["read"]
+
+# ── À définir dans vaults/vault_supervision.yml ──────────────────────────────
+# influxdb_admin_password
+# influxdb_admin_token

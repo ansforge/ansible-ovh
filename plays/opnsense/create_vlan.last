@@ -1,0 +1,22 @@
+---
+- name: Creation VLAN et VIP CARP OPNsense
+  hosts: opnsense
+  gather_facts: false
+  serial: 1
+
+  vars:
+    api_host: "{{ ansible_host }}"
+    api_key: "{{ opn_api_key }}"
+    api_secret: "{{ opn_api_secret }}"
+    opn_ssl_verify: false
+    opn_timeout: 30
+    carp_password: "Si0TbNVUoQ6yQMIp0R7R"
+    ssh_key: "/home/almalinux/.ssh/opnsense_key"
+
+  tasks:
+    - name: "Traitement de chaque VLAN"
+      include_tasks: create_vlan_item.yml
+      loop: "{{ vlans }}"
+      loop_control:
+        loop_var: vlan_item
+        label: "{{ vlan_item.vlan_name }}_vlan{{ vlan_item.vlan_id }}"

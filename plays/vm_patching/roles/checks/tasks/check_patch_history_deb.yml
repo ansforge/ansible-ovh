@@ -1,0 +1,23 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications de quand le dernier corrctif a été appliqué
+#       Famille Debian (debian, ubuntu)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Patch][Famille Debian] Récupérer la date du dernier correctif depuis le journal dpkg"
+  ansible.builtin.shell:
+    cmd: |
+      datetime_last_patch=$(grep "upgrade\|install" /var/log/dpkg.log 2>/dev/null \
+        | tail -1 \
+        | awk '{print $1, $2}')
+      if [ -z "$datetime_last_patch" ]; then
+        echo "Unknown"
+        exit 0
+      fi
+      date -d "${datetime_last_patch}" "+%d/%m/%Y %H:%M:%S" 2>/dev/null || echo "Unknown"
+    executable: /bin/bash
+  register: linux_last_patch_date
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == "Debian"

@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Serveur NFS de production - exports destinés au bastion Wallix
+# Droits complets pour la phase de test, à restreindre ultérieurement.
+
+{% for share in nfs_shares %}
+{% for client in nfs_allowed_clients %}
+{{ share.path }} {{ client }}({{ share.options | default('rw,sync,no_subtree_check,no_root_squash') }})
+{% endfor %}
+
+{% endfor %}

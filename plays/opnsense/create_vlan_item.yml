@@ -1,0 +1,295 @@
+---
+- name: "=== VLAN {{ vlan_item.vlan_name }}_vlan{{ vlan_item.vlan_id }} ==="
+  ansible.builtin.debug:
+    msg: "Traitement de {{ vlan_item.vlan_name }}_vlan{{ vlan_item.vlan_id }}"
+
+- name: "Définition des variables du VLAN"
+  ansible.builtin.set_fact:
+    vlan_name:   "{{ vlan_item.vlan_name }}"
+    vlan_id:     "{{ vlan_item.vlan_id }}"
+    vip:         "{{ vlan_item.vip }}"
+    ip_master:   "{{ vlan_item.ip_master }}"
+    ip_slave:    "{{ vlan_item.ip_slave }}"
+    vhid:        "{{ vlan_item.vhid }}"
+    vlan_descr:  "{{ vlan_item.vlan_name }}_vlan{{ vlan_item.vlan_id }}"
+    vlan_device: "vmx0_vlan{{ vlan_item.vlan_id }}"
+    ip_locale:   "{{ vlan_item.ip_master if membre == 1 else vlan_item.ip_slave }}"
+    peer_carp:   "{{ vlan_item.ip_slave if membre == 1 else vlan_item.ip_master }}"
+    vip_mask:    "{{ vlan_item.vip.split('/')[1] }}"
+
+- name: "Récupération des VLANs existants"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vlan_settings/searchItem"
+    method: GET
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+  register: existing_vlans
+
+- name: "Création device VLAN {{ vlan_descr }}"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vlan_settings/addItem"
+    method: POST
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+    body_format: json
+    body:
+      vlan:
+        if: "vmx0"
+        tag: "{{ vlan_id }}"
+        pcp: "0"
+        descr: "{{ vlan_descr }}"
+        vlanif: "{{ vlan_device }}"
+  when: >-
+    existing_vlans.json.rows
+    | selectattr('tag', 'equalto', vlan_id)
+    | list | length == 0
+  register: vlan_created
+
+- name: "Reconfigure VLANs — monte le device au kernel"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "php /usr/local/opnsense/scripts/interfaces/reconfigure_vlans.php"
+  when: vlan_created.changed
+  changed_when: true
+
+- name: "Vérification si interface déjà assignée dans <interfaces>"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "grep -c '<if>{{ vlan_device }}</if>' /conf/config.xml || true"
+  register: iface_exists
+  changed_when: false
+
+- name: "Récupération du dernier optX utilisé"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "grep -o 'opt[0-9]*>' /conf/config.xml | grep -o '[0-9]*' | sort -n | tail -1"
+  register: last_opt
+  changed_when: false
+  when: iface_exists.stdout | int == 0
+
+- name: "Calcul du prochain optX"
+  ansible.builtin.set_fact:
+    next_opt: "opt{{ (last_opt.stdout | int) + 1 }}"
+  when: iface_exists.stdout | int == 0
+
+- name: "Backup config.xml avant modification"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "cp /conf/config.xml /conf/config.xml.bak.$(date +%Y%m%d%H%M%S)"
+  when: iface_exists.stdout | int == 0
+  changed_when: true
+
+- name: "Génération du script PHP d'injection interface"
+  ansible.builtin.copy:
+    dest: "/tmp/inject_iface_{{ vlan_device }}.php"
+    content: |
+      <?php
+      $xml = simplexml_load_file('/conf/config.xml');
+      $iface = $xml->interfaces->addChild('{{ next_opt }}');
+      $iface->addChild('if', '{{ vlan_device }}');
+      $iface->addChild('descr', '{{ vlan_descr }}');
+      $iface->addChild('enable', '1');
+      $iface->addChild('spoofmac', '');
+      $iface->addChild('ipaddr', '{{ ip_locale }}');
+      $iface->addChild('subnet', '{{ vip_mask }}');
+      $xml->asXML('/conf/config.xml');
+      @unlink('/tmp/config.cache');
+      echo 'ok';
+  when: iface_exists.stdout | int == 0
+
+- name: "Copie du script PHP d'injection sur le firewall"
+  ansible.builtin.shell:
+    cmd: |
+      scp -i {{ ssh_key }} -o ControlPath=/tmp/ssh_{{ api_host }} \
+      /tmp/inject_iface_{{ vlan_device }}.php \
+      root@{{ api_host }}:/tmp/inject_iface_{{ vlan_device }}.php
+  when: iface_exists.stdout | int == 0
+
+- name: "Injection du bloc interface dans config.xml"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "php /tmp/inject_iface_{{ vlan_device }}.php"
+  when: iface_exists.stdout | int == 0
+  register: config_injected
+
+- name: "Reconfigure VLANs kernel après injection"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "php /usr/local/opnsense/scripts/interfaces/reconfigure_vlans.php"
+  when: config_injected.changed
+  changed_when: true
+
+- name: "Récupération du optX de l'interface"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "grep -B1 '<if>{{ vlan_device }}</if>' /conf/config.xml | grep -o 'opt[0-9]*' | tail -1 || true"
+  register: iface_opt
+  changed_when: false
+
+- name: "Génération du script PHP d'activation interface"
+  ansible.builtin.copy:
+    dest: "/tmp/activate_iface_{{ vlan_device }}.php"
+    content: |
+      <?php
+      require_once('/usr/local/etc/inc/interfaces.inc');
+      require_once('/usr/local/etc/inc/util.inc');
+      require_once('/usr/local/etc/inc/config.inc');
+      require_once('/usr/local/etc/inc/system.inc');
+      interface_configure(false, '{{ iface_opt.stdout | trim }}', true);
+      echo 'ok';
+
+- name: "Copie du script PHP d'activation sur le firewall"
+  ansible.builtin.shell:
+    cmd: |
+      scp -i {{ ssh_key }} -o ControlPath=/tmp/ssh_{{ api_host }} \
+      /tmp/activate_iface_{{ vlan_device }}.php \
+      root@{{ api_host }}:/tmp/activate_iface_{{ vlan_device }}.php
+
+- name: "Activation interface via interface_configure"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "php /tmp/activate_iface_{{ vlan_device }}.php"
+  register: iface_activated
+
+- name: "Récupération des VIPs existantes"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vip_settings/searchItem"
+    method: GET
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+  register: existing_vips
+
+- name: "Vérification VHID disponible"
+  ansible.builtin.assert:
+    that:
+      - existing_vips.json.rows | selectattr('vhid', 'equalto', vhid) | list | length == 0
+    fail_msg: >-
+      VHID {{ vhid }} deja utilise !
+      VHIDs libres disponibles : {{
+        range(1, 256) | list
+        | difference(existing_vips.json.rows | map(attribute='vhid') | map('int') | list)
+        | list
+      }}
+    success_msg: "VHID {{ vhid }} disponible"
+  when: >-
+    existing_vips.json.rows
+    | selectattr('vhid', 'equalto', vhid)
+    | list | length > 0
+
+- name: "Récupération de l'identifiant interne de l'interface"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vip_settings/getItem"
+    method: GET
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+  register: vip_form
+  when: >-
+    existing_vips.json.rows
+    | selectattr('vhid', 'equalto', vhid)
+    | list | length == 0
+
+- name: "Extraction de l'identifiant interface (optX)"
+  ansible.builtin.set_fact:
+    iface_id: >-
+      {{
+        vip_form.json.vip.interface
+        | dict2items
+        | selectattr('value.value', 'equalto', vlan_descr)
+        | map(attribute='key')
+        | first | default('')
+      }}
+  when: vip_form is not skipped
+
+- name: "Abandon si interface non trouvée dans VIP form"
+  ansible.builtin.fail:
+    msg: >-
+      Interface '{{ vlan_descr }}' non trouvée dans la liste des interfaces.
+  when:
+    - vip_form is not skipped
+    - iface_id == ''
+
+- name: "Création VIP CARP {{ vlan_descr }} ({{ 'Primaire' if membre == 1 else 'Slave' }})"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vip_settings/addItem"
+    method: POST
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+    body_format: json
+    body:
+      vip:
+        mode: "carp"
+        interface: "{{ iface_id }}"
+        network: "{{ vip }}"
+        gateway: ""
+        password: "{{ carp_password }}"
+        vhid: "{{ vhid }}"
+        advbase: "10"
+        advskew: "{{ advskew }}"
+        peer: "{{ peer_carp }}"
+        peer6: ""
+        noexpand: "0"
+        nobind: "0"
+        descr: "{{ vlan_descr }}"
+  when:
+    - vip_form is not skipped
+    - iface_id != ''
+    - existing_vips.json.rows | selectattr('vhid', 'equalto', vhid) | list | length == 0
+  register: vip_created
+
+- name: "Reconfigure VIPs API"
+  ansible.builtin.uri:
+    url: "https://{{ api_host }}/api/interfaces/vip_settings/reconfigure"
+    method: POST
+    url_username: "{{ api_key }}"
+    url_password: "{{ api_secret }}"
+    force_basic_auth: true
+    validate_certs: "{{ opn_ssl_verify }}"
+    timeout: "{{ opn_timeout }}"
+    body_format: json
+    body: {}
+
+- name: "Reconfigure VIPs PHP — attache CARP à l'interface"
+  ansible.builtin.shell:
+    cmd: |
+      ssh -i {{ ssh_key }} {{ ssh_opts }} root@{{ api_host }} \
+      "php /usr/local/opnsense/scripts/interfaces/reconfigure_vips.php"
+  changed_when: true
+
+- name: "Suppression des scripts PHP temporaires"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/inject_iface_{{ vlan_device }}.php"
+    - "/tmp/activate_iface_{{ vlan_device }}.php"
+
+- name: "Résumé {{ vlan_descr }}"
+  ansible.builtin.debug:
+    msg:
+      - "✅ VLAN     : {{ vlan_descr }} ({{ vlan_device }})"
+      - "✅ Interface : {{ next_opt | default('déjà existante') }} (ACTIVÉE)"
+      - "✅ IP locale : {{ ip_locale }}/{{ vip_mask }}"
+      - "✅ VIP CARP  : {{ vip }} | Peer : {{ peer_carp }} | VHID : {{ vhid }} | Advskew : {{ advskew }}"

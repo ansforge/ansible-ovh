@@ -6,62 +6,59 @@ http_port 3128
 
 # --- ACL (Access Control Lists) ---
 
-# ACL pour la whitelist (Vérifier que ce fichier existe et contient .google.com par exemple)
+# Whitelist domaines
 acl whitelist_domains dstdomain "/etc/squid/whitelist"
 
-# ACL réseaux internes (Ajout de ton réseau local)
+# Réseaux internes autorisés
 acl internal_nets src 10.11.90.12/32   # infra-prod-repo01
 acl internal_nets src 10.11.90.13/32   # infra-prod-freeipa01
-acl internal_nets src 10.11.90.14/32   # infra-prod-tfansible01 (Optionnel)
+acl internal_nets src 10.11.90.14/32   # infra-prod-tfansible01
 acl localhost_net src 127.0.0.1/32
 
-# ACL ports standards
+# Ports autorisés
 acl SSL_ports port 443
-acl Safe_ports port 80          # http
-acl Safe_ports port 443         # https
+acl Safe_ports port 80
+acl Safe_ports port 443
+
+# Méthode HTTPS tunnel
 acl CONNECT method CONNECT
 
-# --- RÈGLES D'ACCÈS (L'ordre est crucial) ---
 
-http_access allow  CONNECT
+# --- RÈGLES D'ACCÈS (ordre CRITIQUE) ---
 
-# 1. Sécurité de base : Refuser les ports non sûrs
+# 1. Refuser ports non sûrs
 http_access deny !Safe_ports
+
+# 2. Refuser CONNECT vers ports non SSL
 http_access deny CONNECT !SSL_ports
 
-# 2. Autoriser le gestionnaire de cache (uniquement localhost)
-http_access allow localhost manager
-http_access deny manager
-
-# 3. AUTORISER le Proxy lui-même à sortir sans restriction (pour les tests)
+# 3. Autoriser localhost (admin)
 http_access allow localhost
+http_access allow localhost_net
 
-# 4. AUTORISER les réseaux internes UNIQUEMENT vers la whitelist
-http_access allow internal_nets whitelist_domains
-# 5. REFUSER tout le reste
+# 4. Autoriser réseaux internes UNIQUEMENT vers whitelist
+http_access allow internal_nets whitelist_domains CONNECT SSL_ports
+
+# 5. Refuser tout le reste
 http_access deny all
 
-# --- CONFIGURATION SYSTÈME ---
 
-# Dossiers et Cache
+# --- CONFIG SYSTÈME ---
+
 cache_dir ufs /var/spool/squid 100 16 256
 coredump_dir /var/spool/squid
 
-# Journalisation
 access_log /var/log/squid/access.log squid
 cache_log /var/log/squid/cache.log
 
-# Rafraîchissement du cache
 refresh_pattern ^ftp:           1440    20%     10080
 refresh_pattern ^gopher:        1440    0%      1440
 refresh_pattern -i (/cgi-bin/|\?) 0      0%      0
 refresh_pattern .               0       20%     4320
 
-# Confidentialité et Performance
 httpd_suppress_version_string on
 maximum_object_size 4096 KB
 minimum_object_size 0 KB
 maximum_object_size_in_memory 512 KB
 
-# Serveurs DNS (Utilisés par Squid pour résoudre les domaines de la whitelist)
 dns_nameservers 8.8.8.8 8.8.4.4

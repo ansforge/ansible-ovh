@@ -1,0 +1,21 @@
+<VirtualHost *:443>
+    ServerName {{ repo_server_fqdn }}
+
+    SSLEngine on
+    SSLCertificateFile /etc/pki/tls/certs/repo.crt
+    SSLCertificateKeyFile /etc/pki/tls/private/repo.key
+
+{% for alias in repo_http_alias_list %}
+    Alias /{{ alias }} {{ repo_base_path }}/{{ alias }}
+
+    <Directory {{ repo_base_path }}/{{ alias }}>
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        <RequireAny>
+            {% for net in allowednets %}
+            Require ip {{ net }}
+            {% endfor %}
+        </RequireAny>
+    </Directory>
+{% endfor %}
+</VirtualHost>

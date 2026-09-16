@@ -5,7 +5,7 @@
     SSLCertificateFile /etc/pki/tls/certs/repo.crt
     SSLCertificateKeyFile /etc/pki/tls/private/repo.key
 
-{% for alias in repo_http_alias_list %}
+{% for alias in repo_http_alma_alias_list + repo_http_thirdparty_alias_list %}
     Alias /{{ alias }} {{ repo_base_path }}/{{ alias }}
 
     <Directory {{ repo_base_path }}/{{ alias }}>

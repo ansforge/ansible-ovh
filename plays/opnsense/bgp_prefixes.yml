@@ -1,0 +1,12 @@
+---
+# ---------------------------------------------------------------------------
+# bgp_prefixes.yml
+# Liste des réseaux à ajouter dans la prefix-list BGP "Prefix_ANS"
+# Format : network: "x.x.x.x/mask"
+# Pour modifier le masque : remplacer /32 par le CIDR souhaité
+# ---------------------------------------------------------------------------
+
+new_prefixes:
+  - { network: "185.62.41.89/32" }
+  # - { network: "10.10.0.0/24"   }
+  # - { network: "172.16.0.0/16"  }

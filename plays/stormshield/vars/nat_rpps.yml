@@ -1,0 +1,14 @@
+---
+sns_nat_slot: 1
+
+sns_nat_rules_rpps:
+  - action: nat
+    noconnlog: all
+    srctarget: any
+    srcif: fw-front
+    dsttarget: "IP_PUB_14"
+    dstport: "SVC_RPPS_10000,SVC_RPPS_10001,SVC_RPPS_10002,SVC_RPPS_10003"
+    beforevpn: "on"
+    natdsttarget: "rpps_prod_rp01"
+    natdstarp: "on"
+    rulename: "ID_NAT_72"

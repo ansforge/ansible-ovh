@@ -1,0 +1,7 @@
+vlans:
+  - vlan_name: "infra_production_tools"
+    vlan_id: "31"
+    vip: "10.0.65.126/28"
+    ip_master: "10.0.65.124"
+    ip_slave: "10.0.65.125"
+    vhid: "31"

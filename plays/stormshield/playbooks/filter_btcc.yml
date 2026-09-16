@@ -1,0 +1,19 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/filter_rules.yml
+
+  pre_tasks:
+    - name: "Créer séparateur btcc_prod (filter)"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          CONFIG FILTER RULE ADDSEP index={{ sns_filter_slot }} type=filter color=c0c0c0 comment=btcc_prod collapse=0
+
+  roles:
+    - role: stormshield.sns.sns_policy
+      slot: "{{ sns_filter_slot }}"
+      mode: add
+      activate: yes
+      filter: "{{ sns_filter_rules_btcc }}"

@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+# Disponibilité ICMP des firewalls (méthode exec : pas de capability requise).
+{% for fw in telegraf_snmp_targets %}
+
+[[inputs.ping]]
+  urls = ["{{ fw.host }}"]
+  method = "exec"
+  count = {{ telegraf_ping_count }}
+  ping_interval = 1.0
+  timeout = 2.0
+  interval = "{{ fw.interval | default(telegraf_interval) }}"
+  [inputs.ping.tags]
+    fw_name = "{{ fw.name }}"
+    fw_type = "{{ fw.type }}"
+    fw_role = "{{ fw.role | default('firewall') }}"
+{% endfor %}

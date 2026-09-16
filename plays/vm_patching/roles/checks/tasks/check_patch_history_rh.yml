@@ -1,0 +1,27 @@
+---
+# ────────────────────────────────────────────────────────────────────────────
+#    Vérifications de quand le dernier corrctif a été appliqué
+#       Famille RedHat (rhel, centos, fedora, alma)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+- name: "[Patch][Famille RedHat] Récupérer la date du dernier correctif depuis l'historique {{ ansible_facts['pkg_mgr'] }}"
+  ansible.builtin.shell:
+    cmd: |
+      datetime_last_patch=$(LANG=C {{ ansible_facts['pkg_mgr'] }} history list 2>/dev/null \
+        | grep -E "^\s*[0-9]+" \
+        | awk -F'|' '$4 ~ /U/' \
+        | head -1 \
+        | awk -F'|' '{gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3}')
+      if [ -z "$datetime_last_patch" ]; then
+        echo "Unknown"
+        exit 0
+      fi
+      date -d "${datetime_last_patch}" "+%d/%m/%Y %H:%M:%S" 2>/dev/null || echo "Unknown"
+    executable: /bin/bash
+  register: linux_last_patch_date
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts['os_family'] == "RedHat"
+    - ansible_facts['pkg_mgr'] in ["dnf", "yum"]

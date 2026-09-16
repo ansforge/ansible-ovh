@@ -1,0 +1,13 @@
+# ────────────────────────────────────────────────────────────────────────────
+#    Versions supportées pour le moment
+# ────────────────────────────────────────────────────────────────────────────
+
+# Famille RedHat
+redhat_supported_versions:       ['6','7','8','9','10']
+centos_supported_versions:       ['6','7','8','9','10']
+almalinux_supported_versions:    ['8','9','10']
+oraclelinux_supported_versions:  ['6','7','8','9']
+
+# Famille Debian
+debian_supported_versions:       ['8','11','12','13']
+ubuntu_supported_versions:       ['12','20','22']

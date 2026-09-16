@@ -1,0 +1,19 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/filter_rpps.yml
+
+  pre_tasks:
+    - name: "Créer séparateur rpps_prod (filter)"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        script: |
+          CONFIG FILTER RULE ADDSEP index={{ sns_filter_slot }} type=filter color=0000ff comment=rpps_prod collapse=0
+
+  roles:
+    - role: stormshield.sns.sns_policy
+      slot: "{{ sns_filter_slot }}"
+      mode: add
+      activate: yes
+      filter: "{{ sns_filter_rules_rpps }}"
