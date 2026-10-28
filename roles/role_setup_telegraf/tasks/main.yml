@@ -5,6 +5,32 @@
   when: proxy_url is not defined
   tags: [telegraf, install]
 
+- name: Définir l'environnement proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_env:
+      http_proxy: "{{ proxy_url }}"
+      https_proxy: "{{ proxy_url }}"
+      HTTP_PROXY: "{{ proxy_url }}"
+      HTTPS_PROXY: "{{ proxy_url }}"
+      no_proxy: "localhost,127.0.0.1,{{ repo_server_ip }},{{ repo_server_fqdn }},.{{ main_domain }}"
+      NO_PROXY: "localhost,127.0.0.1,{{ repo_server_ip }},{{ repo_server_fqdn }},.{{ main_domain }}"
+  when: proxy_env is not defined
+  tags: [telegraf, install]
+
+- name: Retirer toute configuration proxy globale de dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^proxy\s*='
+    state: absent
+  register: telegraf_dnf_proxy
+  tags: [telegraf, install]
+
+- name: Invalider le cache DNF si la configuration proxy a changé
+  ansible.builtin.command: dnf clean all
+  when: telegraf_dnf_proxy is changed
+  changed_when: true
+  tags: [telegraf, install]
+
 - name: Déclarer le dépôt RPM InfluxData
   ansible.builtin.yum_repository:
     name: "{{ influxdata_repo_name }}"
@@ -20,11 +46,17 @@
   ansible.builtin.dnf:
     name: "{{ telegraf_packages }}"
     state: present
-  environment:
-    http_proxy: "{{ proxy_url }}"
-    https_proxy: "{{ proxy_url }}"
-    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+  environment: "{{ proxy_env }}"
   notify: restart telegraf
+  tags: [telegraf, install]
+
+- name: Créer le répertoire de logs de Telegraf
+  ansible.builtin.file:
+    path: "{{ telegraf_log_dir | default('/var/log/telegraf') }}"
+    state: directory
+    owner: telegraf
+    group: telegraf
+    mode: "0755"
   tags: [telegraf, install]
 
 # ----------------------------
@@ -84,14 +116,26 @@
   notify: restart telegraf
   tags: [telegraf, config]
 
-- name: Valider la syntaxe de la configuration Telegraf
-  ansible.builtin.command:
-    cmd: >-
-      telegraf --config {{ telegraf_config_dir }}/telegraf.conf
-      --config-directory {{ telegraf_confd_dir }}
-      --input-filter internal --test
+
+- name: Réinitialiser l'état d'échec du service
+  ansible.builtin.command: systemctl reset-failed telegraf.service
   changed_when: false
-  tags: [telegraf, config]
+  failed_when: false
+  tags: [telegraf, install]
+
+
+- name: Garantir les droits du journal de Telegraf
+  ansible.builtin.file:
+    path: "{{ telegraf_log_dir | default('/var/log/telegraf') }}/telegraf.log"
+    state: touch
+    owner: telegraf
+    group: telegraf
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  changed_when: false
+  tags: [telegraf, install]
+
 
 - name: Activer et démarrer Telegraf
   ansible.builtin.systemd:

@@ -1,0 +1,20 @@
+---
+- hosts: sns_appliances
+  gather_facts: no
+  vars_files:
+    - ../vars/nat_rass_preprod.yml
+
+  pre_tasks:
+    - name: "Créer séparateur rass_preprod (NAT)"
+      stormshield.sns.sns_command:
+        appliance: "{{ appliance }}"
+        force_modify: "{{ hostvars[inventory_hostname].force_modify | default(false) }}"
+        script: |
+          CONFIG FILTER RULE ADDSEP index={{ sns_nat_slot }} type=nat color=c0c0c0 comment=rass_preprod collapse=0
+
+  roles:
+    - role: stormshield.sns.sns_policy
+      slot: "{{ sns_nat_slot }}"
+      mode: add
+      activate: yes
+      nat: "{{ sns_nat_rules_rass_preprod }}"

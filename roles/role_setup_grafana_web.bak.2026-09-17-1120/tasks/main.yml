@@ -1,0 +1,241 @@
+---
+- name: Lire les variables FreeIPA
+  ansible.builtin.include_vars:
+    file: "../../vaults/vault_freeipa.yml"
+  no_log: true
+  tags: [grafana_web]
+
+- name: Vérifier que la machine est enrôlée dans FreeIPA
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: grafana_web_ipa_enrolled
+  tags: [grafana_web]
+
+- name: Échouer si la machine n'est pas enrôlée dans FreeIPA
+  ansible.builtin.fail:
+    msg: >-
+      {{ inventory_hostname }} n'est pas enrôlée dans FreeIPA.
+      Jouer play_lin_ipaclient_enroll.yml avant ce rôle.
+  when: not grafana_web_ipa_enrolled.stat.exists
+  tags: [grafana_web]
+
+- name: Déclarer le FQDN et les services dans FreeIPA
+  when: grafana_web_manage_ipa | bool
+  delegate_to: "{{ groups['ipaservers'][0] }}"
+  run_once: true
+  tags: [grafana_web, ipa]
+  block:
+    - name: Obtenir un ticket Kerberos administrateur
+      ansible.builtin.shell: |
+        set -o pipefail
+        echo '{{ freeipa_admin_password | default(vault_ipaadmin_password) }}' \
+          | kinit {{ freeipa_admin_principal | default('admin') }}
+      args:
+        executable: /bin/bash
+      changed_when: false
+      no_log: true
+
+    - name: Créer l'enregistrement DNS A du FQDN Grafana
+      ansible.builtin.shell: |
+        set -o pipefail
+        if ipa dnsrecord-show {{ grafana_web_dns_zone }} {{ grafana_web_record }} >/dev/null 2>&1; then
+          echo "UNCHANGED"
+          exit 0
+        fi
+        if out=$(ipa dnsrecord-add {{ grafana_web_dns_zone }} {{ grafana_web_record }} \
+                   --a-rec {{ hostvars[inventory_hostname]['ansible_host'] }} 2>&1); then
+          echo "CHANGED"
+        else
+          echo "${out}"
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+      register: grafana_web_dns
+      changed_when: "'CHANGED' in grafana_web_dns.stdout"
+
+    - name: Créer les principaux de service HTTP
+      ansible.builtin.shell: |
+        set -o pipefail
+        if ipa service-show HTTP/{{ item }} >/dev/null 2>&1; then
+          echo "UNCHANGED"
+          exit 0
+        fi
+        if out=$(ipa service-add HTTP/{{ item }} --force --skip-host-check 2>&1); then
+          echo "CHANGED"
+        else
+          echo "${out}"
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+      loop:
+        - "{{ grafana_web_host_fqdn }}"
+        - "{{ grafana_web_fqdn }}"
+      register: grafana_web_svc
+      changed_when: "'CHANGED' in grafana_web_svc.stdout"
+
+    - name: Autoriser la VM de supervision à gérer ces services
+      ansible.builtin.shell: |
+        set -o pipefail
+        out=$(ipa service-add-host HTTP/{{ item }} --hosts={{ grafana_web_host_fqdn }} 2>&1) || true
+        echo "${out}"
+        if echo "${out}" | grep -qi 'already a member'; then
+          echo "UNCHANGED"
+        elif echo "${out}" | grep -qi 'Number of members added 1'; then
+          echo "CHANGED"
+        else
+          echo "ERROR"
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+      loop:
+        - "{{ grafana_web_host_fqdn }}"
+        - "{{ grafana_web_fqdn }}"
+      register: grafana_web_svc_host
+      changed_when: "'CHANGED' in grafana_web_svc_host.stdout"
+
+- name: Installer certmonger et les outils IPA
+  ansible.builtin.dnf:
+    name:
+      - certmonger
+      - ipa-client
+    state: present
+  tags: [grafana_web, certificat]
+
+- name: Activer et démarrer certmonger
+  ansible.builtin.systemd:
+    name: certmonger
+    enabled: true
+    state: started
+  tags: [grafana_web, certificat]
+
+- name: Vérifier si le certificat est déjà suivi par certmonger
+  ansible.builtin.command: ipa-getcert list -f {{ grafana_web_cert_path }}
+  register: grafana_web_cert_tracked
+  changed_when: false
+  failed_when: false
+  tags: [grafana_web, certificat]
+
+- name: Demander le certificat à l'autorité FreeIPA
+  ansible.builtin.command: >-
+    ipa-getcert request
+    -f {{ grafana_web_cert_path }}
+    -k {{ grafana_web_key_path }}
+    -N CN={{ grafana_web_fqdn }}
+    -D {{ grafana_web_fqdn }}
+    -D {{ grafana_web_host_fqdn }}
+    -K HTTP/{{ grafana_web_fqdn }}
+    -g 3072
+    -C "systemctl reload nginx"
+  when: "'tracked: 0' in grafana_web_cert_tracked.stdout"
+  changed_when: true
+  tags: [grafana_web, certificat]
+
+- name: Attendre l'émission du certificat
+  ansible.builtin.wait_for:
+    path: "{{ grafana_web_cert_path }}"
+    state: present
+    timeout: "{{ grafana_web_cert_wait_seconds }}"
+  tags: [grafana_web, certificat]
+
+- name: Contrôler l'état du certificat
+  ansible.builtin.command: ipa-getcert status -f {{ grafana_web_cert_path }}
+  register: grafana_web_cert_status
+  changed_when: false
+  until: "'MONITORING' in grafana_web_cert_status.stdout"
+  retries: 12
+  delay: 10
+  tags: [grafana_web, certificat]
+
+- name: Autoriser nginx à lire la clé privée
+  ansible.builtin.file:
+    path: "{{ grafana_web_key_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  tags: [grafana_web, certificat]
+
+- name: Installer nginx
+  ansible.builtin.dnf:
+    name: nginx
+    state: present
+  tags: [grafana_web, nginx]
+
+- name: Autoriser nginx à se connecter au backend Grafana (SELinux)
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+  tags: [grafana_web, nginx]
+
+- name: Déployer le vhost Grafana
+  ansible.builtin.template:
+    src: grafana.nginx.conf.j2
+    dest: /etc/nginx/conf.d/grafana.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nginx
+  tags: [grafana_web, nginx]
+
+- name: Contrôler la configuration nginx
+  ansible.builtin.command: nginx -t
+  register: grafana_web_nginx_test
+  changed_when: false
+  tags: [grafana_web, nginx]
+
+- name: Ouvrir HTTP et HTTPS dans firewalld
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - http
+    - https
+  failed_when: false
+  tags: [grafana_web, nginx]
+
+- name: Fermer l'accès direct au port Grafana
+  ansible.posix.firewalld:
+    port: "{{ grafana_http_port | default(3000) }}/tcp"
+    permanent: true
+    state: disabled
+    immediate: true
+  failed_when: false
+  tags: [grafana_web, nginx]
+
+- name: Activer et démarrer nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [grafana_web, nginx]
+
+- name: Appliquer immédiatement la configuration nginx
+  ansible.builtin.meta: flush_handlers
+
+- name: Vérifier que Grafana répond à travers nginx
+  ansible.builtin.uri:
+    url: "https://{{ grafana_web_fqdn }}/api/health"
+    method: GET
+    validate_certs: true
+    use_proxy: false
+    return_content: true
+  register: grafana_web_health
+  until: grafana_web_health.status == 200
+  retries: 6
+  delay: 5
+  changed_when: false
+  tags: [grafana_web]
+
+- name: Afficher l'URL d'accès
+  ansible.builtin.debug:
+    msg:
+      - "Grafana publié sur https://{{ grafana_web_fqdn }}/"
+      - "Certificat émis par l'autorité FreeIPA, renouvellement automatique par certmonger"
+      - "Etat de sante : {{ grafana_web_health.json | default({}) }}"
+  tags: [grafana_web]

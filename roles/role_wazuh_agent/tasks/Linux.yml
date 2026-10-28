@@ -13,6 +13,7 @@
         {'WAZUH_MANAGER': wazuh_manager_address, 'WAZUH_REGISTRATION_PASSWORD': wazuh_registration_password}
         | combine({'WAZUH_MANAGER_ENDPOINT': wazuh_manager_endpoint} if (wazuh_manager_endpoint | default('') | length > 0) else {})
       }}
+  no_log: true
 
 - name: Linux CentOS/RedHat | Importing tasks for RHEL-based systems
   ansible.builtin.include_tasks:
@@ -41,6 +42,66 @@
   when:
     - ansible_facts.os_family == "Debian"
 
+# ----------------------------------------------------------------------------
+# Enrôlement
+#
+# L'enrôlement DOIT être conditionnel : sans garde, agent-auth crée une
+# nouvelle entrée à chaque exécution du rôle et sature le manager d'agents
+# homonymes, qu'il finit par rejeter (« Duplicate agent name »).
+# ----------------------------------------------------------------------------
+
+- name: Linux | Check whether the agent is already enrolled
+  ansible.builtin.stat:
+    path: /var/ossec/etc/client.keys
+  register: wazuh_agent_client_keys
+
+- name: Linux | Enroll agent
+  ansible.builtin.command:
+    cmd: >-
+      /var/ossec/bin/agent-auth
+      -m {{ wazuh_manager_address }}
+      -A {{ wazuh_agent_name }}
+      -P {{ wazuh_registration_password }}
+      -G {{ wazuh_agent_group }}
+  register: wazuh_agent_enroll
+  when: >-
+    (wazuh_agent_client_keys.stat.size | default(0)) == 0
+    or (wazuh_agent_force_enrollment | bool)
+  changed_when: wazuh_agent_enroll.rc | default(1) == 0
+  failed_when: false
+  no_log: "{{ wazuh_agent_no_log | bool }}"
+  notify: Restart wazuh-agent
+
+# agent-auth n'écrit jamais le mot de passe sur ses sorties standard :
+# on peut donc les afficher sans risque, contrairement au résultat complet
+# de la tâche qui contient la ligne de commande.
+- name: Linux | Report enrollment failure
+  ansible.builtin.fail:
+    msg: |-
+      Échec de l'enrôlement auprès de {{ wazuh_manager_address }}
+      (code retour {{ wazuh_agent_enroll.rc | default('n/a') }}).
+
+      Sortie de agent-auth :
+      {{ wazuh_agent_enroll.stdout | default('') }}
+      {{ wazuh_agent_enroll.stderr | default('') }}
+  when:
+    - not (wazuh_agent_enroll.skipped | default(false))
+    - (wazuh_agent_enroll.rc | default(0)) != 0
+
+- name: Linux | Verify the agent received a key
+  ansible.builtin.stat:
+    path: /var/ossec/etc/client.keys
+  register: wazuh_agent_client_keys_after
+
+- name: Linux | Fail when enrollment did not produce a key
+  ansible.builtin.fail:
+    msg: >-
+      L'enrôlement auprès de {{ wazuh_manager_address }} a échoué :
+      /var/ossec/etc/client.keys est vide. Vérifier le mot de passe
+      d'enrôlement, l'existence du groupe « {{ wazuh_agent_group }} »
+      sur le manager et l'absence d'un agent homonyme.
+  when: (wazuh_agent_client_keys_after.stat.size | default(0)) == 0
+
 - name: Linux | Start and enable Wazuh Agent service
   block:
     - name: Linux | Reload systemd configuration
@@ -52,7 +113,7 @@
       ansible.builtin.service:
         name: wazuh-agent
         enabled: true
-        state: restarted
+        state: started
 
 - name: Linux | Remove leftover wazuh-agent installation directory
   ansible.builtin.file:

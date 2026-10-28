@@ -8,13 +8,33 @@
   when: proxy_url is not defined
   tags: [influxdb, install]
 
-- name: Configurer le proxy dans dnf.conf
+- name: Définir l'environnement proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_env:
+      http_proxy: "{{ proxy_url }}"
+      https_proxy: "{{ proxy_url }}"
+      HTTP_PROXY: "{{ proxy_url }}"
+      HTTPS_PROXY: "{{ proxy_url }}"
+      no_proxy: "localhost,127.0.0.1,{{ repo_server_ip }},{{ repo_server_fqdn }},.{{ main_domain }}"
+      NO_PROXY: "localhost,127.0.0.1,{{ repo_server_ip }},{{ repo_server_fqdn }},.{{ main_domain }}"
+  when: proxy_env is not defined
+  tags: [influxdb, install]
+
+# Le proxy est porté par chaque dépôt amont (option « proxy » ci-dessous).
+# Un proxy global dans dnf.conf s'appliquerait aussi aux dépôts locaux et
+# invaliderait silencieusement le cache construit par role_setup_repo_client.
+- name: Retirer toute configuration proxy globale de dnf.conf
   ansible.builtin.lineinfile:
     path: /etc/dnf/dnf.conf
-    regexp: "^proxy="
-    line: "proxy={{ proxy_url }}"
-    insertafter: "[main]"
-    state: present
+    regexp: '^proxy\s*='
+    state: absent
+  register: influxdb_dnf_proxy
+  tags: [influxdb, install]
+
+- name: Invalider le cache DNF si la configuration proxy a changé
+  ansible.builtin.command: dnf clean all
+  when: influxdb_dnf_proxy is changed
+  changed_when: true
   tags: [influxdb, install]
 
 # ----------------------------
@@ -71,10 +91,7 @@
   ansible.builtin.dnf:
     name: "{{ influxdb_packages }}"
     state: present
-  environment:
-    http_proxy: "{{ proxy_url }}"
-    https_proxy: "{{ proxy_url }}"
-    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+  environment: "{{ proxy_env }}"
   notify: restart influxdb
   tags: [influxdb, install]
 

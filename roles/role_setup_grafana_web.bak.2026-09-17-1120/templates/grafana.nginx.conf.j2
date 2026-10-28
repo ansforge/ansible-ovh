@@ -1,0 +1,59 @@
+# {{ ansible_managed }}
+# Publication HTTPS de Grafana — {{ grafana_web_fqdn }}
+
+server {
+    listen {{ grafana_web_http_port }};
+    listen [::]:{{ grafana_web_http_port }};
+    server_name {{ grafana_web_fqdn }} {{ grafana_web_host_fqdn }};
+
+    return 301 https://{{ grafana_web_fqdn }}$request_uri;
+}
+
+server {
+{% if grafana_web_modern_http2 | bool %}
+    listen {{ grafana_web_https_port }} ssl;
+    listen [::]:{{ grafana_web_https_port }} ssl;
+    http2 on;
+{% else %}
+    listen {{ grafana_web_https_port }} ssl http2;
+    listen [::]:{{ grafana_web_https_port }} ssl http2;
+{% endif %}
+    server_name {{ grafana_web_fqdn }} {{ grafana_web_host_fqdn }};
+
+    ssl_certificate     {{ grafana_web_cert_path }};
+    ssl_certificate_key {{ grafana_web_key_path }};
+    ssl_protocols       {{ grafana_web_ssl_protocols }};
+    ssl_ciphers         {{ grafana_web_ssl_ciphers | replace(' ', '') | replace('\n', '') }};
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options    "nosniff" always;
+    add_header X-Frame-Options           "SAMEORIGIN" always;
+    add_header Referrer-Policy           "same-origin" always;
+
+    access_log /var/log/nginx/grafana_access.log;
+    error_log  /var/log/nginx/grafana_error.log;
+
+    client_max_body_size 32m;
+
+    location / {
+        proxy_pass {{ grafana_web_backend_url }};
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # Flux temps réel Grafana (WebSocket)
+    location /api/live/ {
+        proxy_pass {{ grafana_web_backend_url }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host       $host;
+    }
+}

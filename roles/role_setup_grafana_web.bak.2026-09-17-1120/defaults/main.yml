@@ -1,0 +1,23 @@
+---
+grafana_web_record: "infra-prod-grafana"
+grafana_web_dns_zone: "{{ main_domain }}"
+grafana_web_fqdn: "{{ grafana_web_record }}.{{ grafana_web_dns_zone }}"
+grafana_web_host_fqdn: "{{ inventory_hostname }}.{{ main_domain }}"
+
+grafana_web_http_port: 80
+grafana_web_https_port: 443
+grafana_web_backend_url: "http://127.0.0.1:{{ grafana_http_port | default(3000) }}"
+
+grafana_web_cert_path: /etc/pki/tls/certs/grafana.crt
+grafana_web_key_path: /etc/pki/tls/private/grafana.key
+grafana_web_cert_wait_seconds: 180
+
+grafana_web_manage_ipa: true
+
+grafana_web_modern_http2: "{{ ansible_distribution_major_version | int >= 10 }}"
+
+grafana_web_ssl_protocols: "TLSv1.2 TLSv1.3"
+grafana_web_ssl_ciphers: >-
+  ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:
+  ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:
+  ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305

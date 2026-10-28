@@ -1,0 +1,29 @@
+---
+grafana_repo_name: "grafana"
+grafana_repo_baseurl: "https://rpm.grafana.com"
+grafana_repo_gpgkey: "https://rpm.grafana.com/gpg.key"
+grafana_packages:
+  - grafana
+
+grafana_http_addr: "0.0.0.0"
+grafana_http_port: 3000
+grafana_domain: "{{ inventory_hostname }}.{{ main_domain | default('ans.local') }}"
+grafana_root_url: "http://{{ grafana_domain }}:{{ grafana_http_port }}/"
+grafana_admin_user: "admin"
+
+grafana_config_file: /etc/grafana/grafana.ini
+grafana_provisioning_dir: /etc/grafana/provisioning
+grafana_dashboards_dir: /var/lib/grafana/dashboards
+
+grafana_datasource_name: "InfluxDB-Supervision"
+grafana_datasource_uid: "influxdb-supervision"
+grafana_influxdb_url: "http://127.0.0.1:8086"
+grafana_influxdb_org: "ans"
+grafana_influxdb_bucket: "supervision"
+influxdb_token_dir: /etc/influxdb/tokens
+
+grafana_dashboards:
+  - fw-overview.json
+  - stormshield-sns.json
+  - opnsense.json
+grafana_home_dashboard: "fw-overview.json"

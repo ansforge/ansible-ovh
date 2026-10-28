@@ -1,0 +1,7 @@
+---
+- name: Publication HTTPS de Grafana sur un FQDN dédié
+  hosts: grafana
+  become: true
+
+  roles:
+    - role_setup_grafana_web

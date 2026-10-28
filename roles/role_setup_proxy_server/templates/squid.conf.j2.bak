@@ -1,0 +1,69 @@
+# {{ ansible_managed }}
+# Configuration Squid en mode proxy explicite
+# Localisation : {{ squid_config_file | default('/etc/squid/squid.conf') }}
+
+# Port HTTP pour le proxy explicite
+http_port {{ squid_http_port | default(3128) }}
+
+# --- ACL (Access Control Lists) ---
+
+# Whitelist domaines
+acl whitelist_domains dstdomain "{{ squid_whitelist_file | default('/etc/squid/whitelist') }}"
+
+# Réseaux internes autorisés (pilotés par squid_allowed_clients dans l'inventaire)
+{% for client in squid_allowed_clients %}
+acl internal_nets src {{ client.cidr }}   # {{ client.comment | default(client.cidr) }}
+{% endfor %}
+acl localhost_net src 127.0.0.1/32
+
+# Ports autorisés
+acl SSL_ports port 443
+acl Safe_ports port 80
+acl Safe_ports port 443
+
+# Méthode HTTPS tunnel
+acl CONNECT method CONNECT
+
+
+# --- RÈGLES D'ACCÈS (ordre CRITIQUE) ---
+
+# 1. Refuser ports non sûrs
+http_access deny !Safe_ports
+
+# 2. Refuser CONNECT vers ports non SSL
+http_access deny CONNECT !SSL_ports
+
+# 3. Autoriser localhost (admin)
+http_access allow localhost
+http_access allow localhost_net
+
+# 4. Autoriser réseaux internes UNIQUEMENT vers whitelist
+http_access allow internal_nets whitelist_domains CONNECT SSL_ports
+{% if squid_allow_plain_http | default(false) %}
+# 4bis. Autoriser également le HTTP en clair vers la whitelist
+http_access allow internal_nets whitelist_domains Safe_ports
+{% endif %}
+
+# 5. Refuser tout le reste
+http_access deny all
+
+
+# --- CONFIG SYSTÈME ---
+
+cache_dir ufs /var/spool/squid {{ squid_cache_size_mb | default(100) }} 16 256
+coredump_dir /var/spool/squid
+
+access_log /var/log/squid/access.log squid
+cache_log /var/log/squid/cache.log
+
+refresh_pattern ^ftp:           1440    20%     10080
+refresh_pattern ^gopher:        1440    0%      1440
+refresh_pattern -i (/cgi-bin/|\?) 0      0%      0
+refresh_pattern .               0       20%     4320
+
+httpd_suppress_version_string on
+maximum_object_size {{ squid_max_object_size_kb | default(4096) }} KB
+minimum_object_size 0 KB
+maximum_object_size_in_memory 512 KB
+
+dns_nameservers {{ squid_dns_nameservers | default(['8.8.8.8', '8.8.4.4']) | join(' ') }}

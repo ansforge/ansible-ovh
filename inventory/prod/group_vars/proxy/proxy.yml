@@ -1,4 +1,22 @@
+---
 proxy_port: 3128
 squid_http_port: 3128
 squid_config_file: /etc/squid/squid.conf
 squid_whitelist_file: /etc/squid/whitelist
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Clients autorisés à sortir par le proxy.
+# Toute nouvelle VM ayant besoin d'Internet doit être ajoutée ici.
+# ─────────────────────────────────────────────────────────────────────────────
+squid_allowed_clients:
+  - cidr: 10.11.90.12/32
+    comment: "infra-prod-repo01"
+  - cidr: 10.11.90.13/32
+    comment: "infra-prod-freeipa01"
+  - cidr: 10.11.90.14/32
+    comment: "infra-prod-tfansible01"
+  - cidr: 10.11.90.18/32
+    comment: "infra-prod-sup01"
+
+# Le HTTP en clair reste refusé : les dépôts amont sont tous en HTTPS.
+squid_allow_plain_http: false

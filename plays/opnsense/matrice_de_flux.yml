@@ -1,12 +1,48 @@
 flux:
-  - id: 63
+  - id: 1
+    delete: true
     src:
-      - name: "prod-igc-master01"
-        ip: "10.0.4.170"
+      - name: "NET_VPN_SSL"
+        ip: "172.16.100.0/24"
     dst:
-      - name: "prod-igc-master01"
-        ip: "10.0.4.170"
+      - name: "FWBE_MASTER"
+        ip: "10.11.50.10"
+      - name: "FWBE_SLAVE"
+        ip: "10.11.50.11"
+    proto: "tcp"
+    ports: [22, 443]
+    category: "ACCES_VPN"
+  - id: 2
+    delete: true
+    src:
+      - name: "NET_VPN_SSL"
+        ip: "172.16.100.0/24"
+    dst:
+      - name: "FWFE"
+        ip: "10.11.20.251"
+    proto: "tcp"
+    ports: [22, 443]
+    category: "ACCES_VPN"
+  - id: 3
+    delete: true
+    src:
+      - name: "NET_VPN_SSL"
+        ip: "172.16.100.0/24"
+    dst:
+      - name: "infra_prod_tfansible01"
+        ip: "10.11.90.14"
     proto: "tcp"
     ports: [22]
-    category: "MIE_PROD"
+    category: "ACCES_VPN"
+  - id: 4
+    delete: true
+    src:
+      - name: "NET_VPN_SSL"
+        ip: "172.16.100.0/24"
+    dst:
+      - name: "Wallix"
+        ip: "10.11.62.12"
+    proto: "tcp"
+    ports: [443]
+    category: "ACCES_VPN"
 

@@ -154,16 +154,16 @@
 
 - name: Copier les RPM dans les dépôts thirdparty
   ansible.builtin.copy:
-    src: "files/{{ item.file }}"
+    src: "{{ item.file }}"
     dest: "{{ repo_base_path }}/thirdparty/{{ item.name }}/{{ item.file }}"
     owner: apache
     group: apache
     mode: "0644"
   loop: "{{ thirdparty_rpms }}"
 
-#- name: Planifier la synchronisation Cron (02h00)
-#  cron:
-#    name: "Sync AlmaLinux Repos"
-#    minute: "0"
-#    hour: "2"
-#    job: "/usr/local/bin/sync_repos.sh"
+- name: Planifier la synchronisation Cron (02h00)
+  cron:
+    name: "Sync AlmaLinux Repos"
+    minute: "0"
+    hour: "2"
+    job: "/usr/local/bin/sync_repos.sh"

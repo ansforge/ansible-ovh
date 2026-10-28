@@ -1,14 +1,40 @@
-repo_http_alias: alma10-repos
+---
+repo_http_alias: "repos/alma10-repos"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dépôts AlmaLinux 10 locaux
+#
+# Ces dépôts sont utilisés par toutes les VM du groupe [alma10].
+#
+# Les dépôts Grafana et InfluxData ne sont PAS définis ici.
+# Ils sont réservés au groupe [supervision].
+# ─────────────────────────────────────────────────────────────────────────────
 
 repositories:
+
+  # ---------------------------------------------------------------------------
+  # AlmaLinux BaseOS
+  # ---------------------------------------------------------------------------
+
   - name: alma10-local-baseos
-    description: "AlmaLinux 10 - Local Baseos"
-    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+    description: "AlmaLinux 10 - Local BaseOS"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+
+  # ---------------------------------------------------------------------------
+  # AlmaLinux AppStream
+  # ---------------------------------------------------------------------------
+
   - name: alma10-local-appstream
     description: "AlmaLinux 10 - Local AppStream"
-    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+
+  # ---------------------------------------------------------------------------
+  # AlmaLinux Extras
+  # ---------------------------------------------------------------------------
+
   - name: alma10-local-extras
     description: "AlmaLinux 10 - Local Extras"
-    baseurl: "https://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
 
-gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"
+# Clé GPG AlmaLinux locale
+gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-{{ ansible_distribution_major_version }}"

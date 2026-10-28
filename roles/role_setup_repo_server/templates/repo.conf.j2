@@ -1,3 +1,4 @@
+```jinja2
 <VirtualHost *:443>
     ServerName {{ repo_server_fqdn }}
 
@@ -12,10 +13,11 @@
         Options Indexes FollowSymLinks
         AllowOverride None
         <RequireAny>
-            {% for net in allowednets %}
+{% for net in allowed_networks %}
             Require ip {{ net }}
-            {% endfor %}
+{% endfor %}
         </RequireAny>
     </Directory>
 {% endfor %}
 </VirtualHost>
+```

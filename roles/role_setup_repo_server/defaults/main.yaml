@@ -1,25 +1,42 @@
-
 ---
+# Chemins du serveur de dépôts
 repo_base_path: /var/www/html/repos
 repo_mount_path: /var/www/html/repos
 repo_disk_device: /dev/sdb
 
+# Proxy Squid
 proxy_ip: "{{ hostvars[groups['proxy'][0]]['proxy_listen_ip'] }}"
 proxy_port: 3128
 
-# Liste des dépôts à synchroniser
+# Dépôts AlmaLinux à synchroniser
 alma_repos:
   - baseos
   - appstream
   - extras
-# liste des version d os a synchroniser
+
+# Versions AlmaLinux à synchroniser
 alma_releases:
   - "10"
-# liste des alias/repertoires correspondants
-repo_http_alias_list:
- - alma10-repos
 
-# Réseaux autorisés (VLANs)
+# Alias HTTP des dépôts AlmaLinux
+repo_http_alma_alias_list:
+  - alma10-repos
+
+# Dépôts tiers à publier
+thirdparty_repos:
+  - epel
+  - wazuh  
+
+# Alias HTTP des dépôts tiers
+repo_http_thirdparty_alias_list:
+  - thirdparty
+
+# RPM tiers à publier
+thirdparty_rpms:
+  - name: wazuh
+    file: wazuh-agent-4.14.0-1.x86_64.rpm
+
+# Réseaux autorisés à accéder aux dépôts HTTP
 allowed_networks:
   - 10.25.50.0/24
   - 172.16.41.0/24

@@ -12,25 +12,95 @@
     state: directory
     mode: "0755"
 
-- name: Désactiver tous les dépôts AlmaLinux par défaut vers backup
-  ansible.builtin.shell: mv /etc/yum.repos.d/*.repo  /etc/yum.repos.d/backup/
-  failed_when: false
+- name: Lister les dépôts présents dans /etc/yum.repos.d
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d
+    patterns: "*.repo"
+    file_type: file
+  register: repo_existing_files
 
-- name: Configurer les dépôts locaux
+- name: Désactiver tous les dépôts AlmaLinux par défaut vers backup
+  ansible.builtin.command:
+    cmd: "mv {{ item.path }} /etc/yum.repos.d/backup/"
+    removes: "{{ item.path }}"
+  loop: "{{ repo_existing_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  changed_when: true
+
+- name: Supprimer le bundle GPG AlmaLinux obsolète
+  ansible.builtin.file:
+    path: "{{ repo_legacy_alma_key }}"
+    state: absent
+
+- name: Vérifier la présence de la clé GPG AlmaLinux versionnée
+  ansible.builtin.stat:
+    path: "{{ local_gpg_key_path }}"
+  register: repo_alma_key
+
+- name: Récupérer la clé GPG AlmaLinux versionnée si elle est absente
+  ansible.builtin.get_url:
+    url: "{{ gpg_key_url }}"
+    dest: "{{ local_gpg_key_path }}"
+    mode: "0644"
+    timeout: 30
+  environment: "{{ repo_client_proxy_env }}"
+  when: not repo_alma_key.stat.exists
+
+- name: Télécharger les clés GPG des dépôts distants
+  ansible.builtin.get_url:
+    url: "{{ item }}"
+    dest: "{{ repo_gpg_dir }}/{{ item | basename }}"
+    mode: "0644"
+    timeout: 30
+  loop: "{{ repo_remote_gpg_keys }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  environment: "{{ repo_client_proxy_env }}"
+  register: repo_gpg_download
+  retries: 3
+  delay: 5
+  until: repo_gpg_download is succeeded
+
+- name: Vérifier la présence des clés GPG sur le système
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ repo_gpg_local_paths }}"
+  register: repo_gpg_stat
+
+- name: Échouer si une clé GPG déclarée est absente
+  ansible.builtin.fail:
+    msg: "Clé GPG manquante sur le système : {{ item.item }}"
+  loop: "{{ repo_gpg_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not item.stat.exists
+
+- name: Importer les clés GPG dans la base RPM
+  ansible.builtin.rpm_key:
+    key: "{{ item.item }}"
+    state: present
+  loop: "{{ repo_gpg_stat.results }}"
+  when: item.stat.exists
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Configurer les dépôts (locaux et amont)
   ansible.builtin.yum_repository:
     name: "{{ repository.name }}"
     description: "{{ repository.description }}"
     baseurl: "{{ repository.baseurl }}"
-    enabled: true
-    gpgcheck: true
-    sslverify: false
-    gpgkey: "{{ gpgkey }}"
+    enabled: "{{ repository.enabled | default(true) }}"
+    gpgcheck: "{{ repository.gpgcheck | default(true) }}"
+    repo_gpgcheck: "{{ repository.repo_gpgcheck | default(false) }}"
+    gpgkey: >-
+      {{ (repository.gpgkey | default(gpgkey))
+         | regex_replace('RPM-GPG-KEY-AlmaLinux$', 'RPM-GPG-KEY-AlmaLinux-' ~ alma_major)
+         | regex_replace('^https?://.*/', 'file://' ~ repo_gpg_dir ~ '/')
+         if repo_force_local_gpgkey
+         else (repository.gpgkey | default(gpgkey)) }}
+    proxy: "{{ repository.proxy | default(omit) }}"
   loop: "{{ repositories }}"
   loop_control:
     loop_var: repository
-
-- name: Nettoyer le cache DNF
-  ansible.builtin.command: dnf clean all
-
-- name: Reconstruire la base de données DNF
-  ansible.builtin.command: dnf makecache
+    label: "{{ repository.name }}"

@@ -1,0 +1,51 @@
+---
+repo_http_alias: "repos/alma10-repos"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dépôts vus par les VM AlmaLinux 10 de prod
+#   - les 3 dépôts AlmaLinux servis par infra-prod-repo01 (clé GPG globale,
+#     accès direct en HTTP, donc AUCUN proxy)
+#   - les 2 dépôts de supervision consommés en direct chez l'éditeur,
+#     à travers le proxy Squid, chacun avec sa propre clé GPG
+# ─────────────────────────────────────────────────────────────────────────────
+repositories:
+  - name: alma10-local-baseos
+    description: "AlmaLinux 10 - Local Baseos"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+  - name: alma10-local-appstream
+    description: "AlmaLinux 10 - Local AppStream"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+  - name: alma10-local-extras
+    description: "AlmaLinux 10 - Local Extras"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+
+  # Dépôt Grafana : arborescence PLATE, ne pas y ajouter $releasever/$basearch
+  - name: grafana
+    description: "Grafana OSS"
+    baseurl: "https://rpm.grafana.com"
+    gpgkey: "https://rpm.grafana.com/gpg.key"
+    gpgcheck: true
+    repo_gpgcheck: true
+    proxy: "{{ proxy_url }}"
+
+  - name: influxdata
+    description: "InfluxData - InfluxDB 2 & Telegraf"
+    baseurl: "https://repos.influxdata.com/rhel/$releasever/$basearch/stable"
+    gpgkey: "https://repos.influxdata.com/influxdata-archive.key"
+    gpgcheck: true
+    repo_gpgcheck: false
+    proxy: "{{ proxy_url }}"
+
+  - name: alma10-local-baseos
+    description: "AlmaLinux 10 - Local Baseos"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
+
+  - name: alma10-local-appstream
+    description: "AlmaLinux 10 - Local AppStream"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
+
+  - name: alma10-local-extras
+    description: "AlmaLinux 10 - Local Extras"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+
+gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"

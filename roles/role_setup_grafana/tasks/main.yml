@@ -1,0 +1,150 @@
+---
+- name: Définir l'URL du proxy (fallback si non défini globalement)
+  ansible.builtin.set_fact:
+    proxy_url: "http://{{ hostvars[groups['proxy'][0]]['ansible_host'] }}:{{ proxy_port | default(3128) }}"
+  when: proxy_url is not defined
+  tags: [grafana, install]
+
+- name: Déclarer le dépôt RPM Grafana
+  ansible.builtin.yum_repository:
+    name: "{{ grafana_repo_name }}"
+    description: "Grafana OSS Repository"
+    baseurl: "{{ grafana_repo_baseurl }}"
+    gpgcheck: true
+    gpgkey: "{{ grafana_repo_gpgkey }}"
+    enabled: true
+    proxy: "{{ proxy_url }}"
+  tags: [grafana, install]
+
+- name: Installer Grafana
+  ansible.builtin.dnf:
+    name: "{{ grafana_packages }}"
+    state: present
+  environment:
+    http_proxy: "{{ proxy_url }}"
+    https_proxy: "{{ proxy_url }}"
+    no_proxy: "localhost,127.0.0.1,10.0.0.0/8"
+  notify: restart grafana
+  tags: [grafana, install]
+
+- name: Lire le token de lecture Grafana (exécution autonome du rôle)
+  ansible.builtin.slurp:
+    src: "{{ influxdb_token_dir }}/grafana.token"
+  register: grafana_token_raw
+  when: influxdb_tokens is not defined
+  no_log: true
+  tags: [grafana, config]
+
+- name: Mémoriser le token de lecture Grafana
+  ansible.builtin.set_fact:
+    grafana_influxdb_token: >-
+      {{ (influxdb_tokens.grafana
+          if influxdb_tokens is defined
+          else grafana_token_raw.content | b64decode) | trim }}
+  no_log: true
+  tags: [grafana, config]
+
+- name: Déployer la configuration Grafana
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: "{{ grafana_config_file }}"
+    owner: root
+    group: grafana
+    mode: "0640"
+    backup: true
+  notify: restart grafana
+  tags: [grafana, config]
+
+- name: Créer les répertoires de provisioning
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0750"
+  loop:
+    - "{{ grafana_provisioning_dir }}/datasources"
+    - "{{ grafana_provisioning_dir }}/dashboards"
+  tags: [grafana, config]
+
+- name: Créer le répertoire des dashboards
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dir }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0750"
+  tags: [grafana, config, dashboards]
+
+- name: Provisionner la source de données InfluxDB
+  ansible.builtin.template:
+    src: datasource_influxdb.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/datasources/influxdb.yml"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+  no_log: true
+  tags: [grafana, config]
+
+- name: Provisionner le fournisseur de dashboards
+  ansible.builtin.template:
+    src: dashboards_provider.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/dashboards/supervision.yml"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+  tags: [grafana, config, dashboards]
+
+- name: Déployer les dashboards de supervision
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ grafana_dashboards_dir }}/{{ item | basename }}"
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  with_fileglob:
+    - "dashboards/*.json"
+  notify: restart grafana
+  tags: [grafana, dashboards]
+
+- name: Autoriser le port Grafana dans firewalld
+  ansible.posix.firewalld:
+    port: "{{ grafana_http_port }}/tcp"
+    permanent: true
+    state: "{{ 'enabled' if grafana_expose_http_port | default(true) else 'disabled' }}"
+    immediate: true
+  failed_when: false
+  tags: [grafana, install]
+
+- name: Activer et démarrer Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [grafana, install]
+
+- name: Forcer le rechargement de la configuration
+  ansible.builtin.meta: flush_handlers
+  tags: [grafana, config]
+
+- name: Attendre que Grafana réponde
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ grafana_http_port }}/api/health"
+    status_code: 200
+    use_proxy: false
+  register: grafana_health
+  retries: 30
+  delay: 2
+  until: grafana_health.status == 200
+  tags: [grafana, config]
+
+- name: Afficher le récapitulatif Grafana
+  ansible.builtin.debug:
+    msg:
+      - "Grafana disponible sur {{ grafana_root_url }}"
+      - "Source de données : {{ grafana_datasource_name }} ({{ grafana_influxdb_url }})"
+      - "Dashboards : {{ grafana_dashboards | join(', ') }}"
+  tags: [grafana]

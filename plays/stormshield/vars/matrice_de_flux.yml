@@ -1,0 +1,76 @@
+objets:
+  hosts:
+    - name: kitcat-prod-rp-01
+      ip: 10.0.12.57
+      comment: "kitcat-prod-rp-01"
+    - name: stef-prod-rp-01
+      ip: 10.0.12.161
+      comment: "stef-prod-rp-01"
+    - name: odin-prod-rp-01
+      ip: 10.0.13.105
+      comment: "odin-prod-rp-01"
+    - name: sgc-prod-rp11
+      ip: 10.0.12.10
+      comment: "sgc-prod-rp11"
+    - name: Modula
+      ip: 10.0.12.162
+      comment: "Modula"
+  networks:
+    - name: COMDATA1
+      ip: 10.92.72.192
+      mask: 255.255.255.192
+      comment: "COMDATA1"
+    - name: COMDATA2
+      ip: 10.12.40.0
+      mask: 255.255.255.0
+      comment: "COMDATA2"
+    - name: COMDATA3
+      ip: 10.51.40.0
+      mask: 255.255.255.0
+      comment: "COMDATA3"
+  groupes: []
+  services: []
+
+flux_filter:
+  - action: pass
+    position: 1
+    srctarget: "COMDATA1"
+    dsttarget: "kitcat-prod-rp-01"
+    ipproto: TCP
+    dstport: "https"
+    rulename: "ID_1_COMDATA_KITKAT"
+    comment: "COMDATA KITKAT"
+  - action: pass
+    position: 1
+    srctarget: "COMDATA1"
+    dsttarget: "stef-prod-rp-01"
+    ipproto: TCP
+    dstport: "https"
+    rulename: "ID_2_COMDATA_STEF"
+    comment: "COMDATA STEF"
+  - action: pass
+    position: 1
+    srctarget: "COMDATA1"
+    dsttarget: "odin-prod-rp-01"
+    ipproto: TCP
+    dstport: "https"
+    rulename: "ID_3_COMDATA_ODIN"
+    comment: "COMDATA ODIN"
+  - action: pass
+    position: 1
+    srctarget: "COMDATA1"
+    dsttarget: "sgc-prod-rp11"
+    ipproto: TCP
+    dstport: "https"
+    rulename: "ID_4_COMDATA_SGC"
+    comment: "COMDATA SGC"
+  - action: pass
+    position: 1
+    srctarget: "COMDATA1"
+    dsttarget: "Modula"
+    ipproto: TCP
+    dstport: "rdp"
+    rulename: "ID_5_COMDATA_MODULA"
+    comment: "COMDATA MODULA"
+
+flux_nat: []

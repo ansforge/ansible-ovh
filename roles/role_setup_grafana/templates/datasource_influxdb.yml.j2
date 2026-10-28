@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+apiVersion: 1
+
+deleteDatasources:
+  - name: {{ grafana_datasource_name }}
+    orgId: 1
+
+datasources:
+  - name: {{ grafana_datasource_name }}
+    uid: {{ grafana_datasource_uid }}
+    type: influxdb
+    access: proxy
+    url: {{ grafana_influxdb_url }}
+    orgId: 1
+    isDefault: true
+    editable: false
+    jsonData:
+      version: Flux
+      organization: {{ grafana_influxdb_org }}
+      defaultBucket: {{ grafana_influxdb_bucket }}
+      httpMode: POST
+      timeout: 60
+    secureJsonData:
+      token: {{ grafana_influxdb_token }}

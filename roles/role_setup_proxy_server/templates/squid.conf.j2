@@ -1,18 +1,20 @@
-# Configuration Squid en mode proxy explicite - CORRIGÉ
-# Localisation : /etc/squid/squid.conf
+# ============================================================
+# Configuration Squid - infra-prod-proxy01
+# ============================================================
 
-# Port HTTP pour le proxy explicite
+# Port d'écoute Squid
 http_port 3128
 
-# --- ACL (Access Control Lists) ---
+# ============================================================
+# ACL - Domaines autorisés
+# ============================================================
 
-# Whitelist domaines
 acl whitelist_domains dstdomain "/etc/squid/whitelist"
 
-# Réseaux internes autorisés
-acl internal_nets src 10.11.90.12/32   # infra-prod-repo01
-acl internal_nets src 10.11.90.13/32   # infra-prod-freeipa01
-acl internal_nets src 10.11.90.14/32   # infra-prod-tfansible01
+# Hôtes internes autorisés à utiliser le proxy
+acl internal_nets src 10.11.90.0/24
+
+# Accès local
 acl localhost_net src 127.0.0.1/32
 
 # Ports autorisés
@@ -20,43 +22,56 @@ acl SSL_ports port 443
 acl Safe_ports port 80
 acl Safe_ports port 443
 
-# Méthode HTTPS tunnel
+# Méthodes HTTP autorisées
 acl CONNECT method CONNECT
+acl HTTP_download_methods method GET HEAD
 
+# ============================================================
+# Règles d'accès
+# ============================================================
 
-# --- RÈGLES D'ACCÈS (ordre CRITIQUE) ---
-
-# 1. Refuser ports non sûrs
+# Refuser les ports non autorisés
 http_access deny !Safe_ports
 
-# 2. Refuser CONNECT vers ports non SSL
+# Refuser CONNECT vers les ports autres que HTTPS
 http_access deny CONNECT !SSL_ports
 
-# 3. Autoriser localhost (admin)
+# Autoriser localhost
 http_access allow localhost
 http_access allow localhost_net
 
-# 4. Autoriser réseaux internes UNIQUEMENT vers whitelist
+# Autoriser GET et HEAD en HTTP sur les domaines whitelistés
+# uniquement depuis les hôtes internes déclarés
+http_access allow internal_nets whitelist_domains HTTP_download_methods Safe_ports
+
+# Autoriser les tunnels HTTPS vers les domaines whitelistés
 http_access allow internal_nets whitelist_domains CONNECT SSL_ports
 
-# 5. Refuser tout le reste
+# Tout le reste est refusé
 http_access deny all
 
-
-# --- CONFIG SYSTÈME ---
+# ============================================================
+# Cache et journaux
+# ============================================================
 
 cache_dir ufs /var/spool/squid 100 16 256
 coredump_dir /var/spool/squid
 
-access_log /var/log/squid/access.log squid
+logformat readable %tl %6tr %>a %Ss/%03>Hs %<st %rm %ru %un %Sh/%<a %mt
+access_log /var/log/squid/access.log readable
 cache_log /var/log/squid/cache.log
 
 refresh_pattern ^ftp:           1440    20%     10080
-refresh_pattern ^gopher:        1440    0%      1440
-refresh_pattern -i (/cgi-bin/|\?) 0      0%      0
-refresh_pattern .               0       20%     4320
+refresh_pattern ^gopher:         1440    0%      1440
+refresh_pattern -i (/cgi-bin/|\?) 0     0%      0
+refresh_pattern .                0      20%     4320
+
+# ============================================================
+# Paramètres divers
+# ============================================================
 
 httpd_suppress_version_string on
+
 maximum_object_size 4096 KB
 minimum_object_size 0 KB
 maximum_object_size_in_memory 512 KB

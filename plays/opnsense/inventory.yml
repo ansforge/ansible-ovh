@@ -14,8 +14,8 @@ all:
 
         opnsense_slave:
           ansible_host: 10.11.90.253
-          opn_api_key: "7lnt/zNgqZ5CQJMlWe3M+LeuQy342e3pxI3bICmDkchapjzNqcQFbrAdIZQnUINOxih/5gOk5ysaBTa8"
-          opn_api_secret: "hyp6YN7M/suSsRRmYiZyfbJxsHYMGTum/MwlrL1zVvTbOyXjzlqUA2pA+Y6MBYCDVnxeWodcn2YYF3te"
+          opn_api_key: "mEwtmWbiNrW56LZ/GLTJZJ9EDSkCrJZE9dHjHVM4WwR4ySfSxNl+zIOZ9iTmZnMIIDul/UhyZC3s3AAi"
+          opn_api_secret: "ansxYS83JCJF0Q7SOkopeWlWY8Zeuh1LSHpWd6dYaB7OyIV37KXq8SRkWAjWlepzAoiRJ0l5SLk/8uzb"
           membre: 2
           advskew: 200
 

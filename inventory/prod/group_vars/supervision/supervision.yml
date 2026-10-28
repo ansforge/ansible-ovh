@@ -1,40 +1,72 @@
 ---
 # ─────────────────────────────────────────────────────────────────────────────
-# infra-prod-sup01 — plateforme de supervision
+# Configuration spécifique à la supervision
+#
+# Groupe concerné :
+#   - infra-prod-sup01
+#
+# Cette VM appartient également au groupe [alma10].
+#
+# Elle utilise :
+#   - les dépôts AlmaLinux locaux
+#   - le dépôt Grafana externe
+#   - le dépôt InfluxData externe
+#
+# Les dépôts externes sont consommés via le proxy Squid.
 # ─────────────────────────────────────────────────────────────────────────────
-telegraf_env: "prod"
-telegraf_interval: "60s"
 
-influxdb_org: "ans"
-influxdb_bucket: "supervision"
-influxdb_retention_days: 90
-influxdb_disk_device: /dev/sdb
+repositories:
 
-telegraf_influxdb_org: "{{ influxdb_org }}"
-telegraf_influxdb_bucket: "{{ influxdb_bucket }}"
+  # ---------------------------------------------------------------------------
+  # AlmaLinux BaseOS
+  # ---------------------------------------------------------------------------
 
-grafana_influxdb_org: "{{ influxdb_org }}"
-grafana_influxdb_bucket: "{{ influxdb_bucket }}"
-grafana_http_port: 3000
+  - name: alma10-local-baseos
+    description: "AlmaLinux 10 - Local BaseOS"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.0 }}/"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Cibles SNMP — firewalls front supervisés
-#   host  : IP joignable depuis 10.11.90.15 (interface d'administration du FW)
-#   type  : stormshield | opnsense  (pilote les OID privés collectés)
-# ─────────────────────────────────────────────────────────────────────────────
-telegraf_snmp_targets:
-  - name: infra-prod-fwfe01
-    host: 10.11.20.251
-    type: stormshield
-    role: master
+  # ---------------------------------------------------------------------------
+  # AlmaLinux AppStream
+  # ---------------------------------------------------------------------------
 
-  - name: infra-outils-opnsense01
-    host: 10.16.51.254
-    type: opnsense
-    role: firewall
+  - name: alma10-local-appstream
+    description: "AlmaLinux 10 - Local AppStream"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.1 }}/"
 
-  # Second nœud du cluster Stormshield — décommenter si supervisé :
-  # - name: infra-prod-fwfe02
-  #   host: 10.11.20.252
-  #   type: stormshield
-  #   role: slave
+  # ---------------------------------------------------------------------------
+  # AlmaLinux Extras
+  # ---------------------------------------------------------------------------
+
+  - name: alma10-local-extras
+    description: "AlmaLinux 10 - Local Extras"
+    baseurl: "http://{{ repo_server_fqdn }}/{{ repo_http_alias }}/{{ alma_repos.2 }}/"
+
+  # ---------------------------------------------------------------------------
+  # Grafana
+  #
+  # Arborescence PLATE :
+  # ne pas ajouter $releasever/$basearch.
+  # ---------------------------------------------------------------------------
+
+  - name: grafana
+    description: "Grafana OSS"
+    baseurl: "https://rpm.grafana.com"
+    gpgkey: "https://rpm.grafana.com/gpg.key"
+    gpgcheck: true
+    repo_gpgcheck: true
+    proxy: "{{ proxy_url }}"
+
+  # ---------------------------------------------------------------------------
+  # InfluxData
+  # ---------------------------------------------------------------------------
+
+  - name: influxdata
+    description: "InfluxData - InfluxDB 2 & Telegraf"
+    baseurl: "https://repos.influxdata.com/rhel/$releasever/$basearch/stable"
+    gpgkey: "https://repos.influxdata.com/influxdata-archive.key"
+    gpgcheck: true
+    repo_gpgcheck: false
+    proxy: "{{ proxy_url }}"
+
+# Clé GPG AlmaLinux locale
+gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-{{ ansible_distribution_major_version }}"

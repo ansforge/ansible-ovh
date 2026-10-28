@@ -1,25 +1,54 @@
+# Fichier whitelist pour Squid
+# Un domaine par ligne.
+# ATTENTION : une entrée « exemple.com » ne matche QUE l'hôte exact.
+#             Pour inclure les sous-domaines, préfixer par un point : « .exemple.com ».
+
+# ── Usage général ───────────────────────────────────────────────────────────
+
+# ── Dépôts AlmaLinux (mise en miroir par infra-prod-repo01) ─────────────────
+
+# ── Supervision : Grafana ───────────────────────────────────────────────────
+#rpm.grafana.com
+.grafana.com
+
+# ── Supervision : InfluxData (InfluxDB 2, Telegraf) ─────────────────────────
+#repos.influxdata.com
+.influxdata.com
+
+# Supervision infra-prod-sup01 - Grafana OSS
+#rpm.grafana.com
+.grafana.com
+
+
+
+
 # Whitelist Squid
 .github.com
 .pypi.org
 # Repos AlmaLinux
 .almalinux.org
-.repo.almalinux.org
-.mirrors.almalinux.org
+# Mirrors AlmaLinux
+.mirror.ibcp.fr
+.fr2.rpmfind.net
+.almalinux.mirror.liteserver.nl
+.mirror.23m.com
+.almalinux.mirrorservice.org
+.mirror.bitency.nl
+.mirror.nl.altushost.com
+.mirrors.hostiserver.com
+.mirror.de.leaseweb.net
 # EPEL
 .fedoraproject.org
 # OVH NTP
 .ovh.net
 # Others
+.apache.org
 .ifconfig.me
-.vault.test.pfccloudovh.esante.gouv.fr
-.vault.pfccloudovh.esante.gouv.fr
+.esante.gouv.fr
 .semaphore.ans.local
 .registry.terraform.io
 releases.hashicorp.com
 checkpoint-api.hashicorp.com
 .api.ovh.com
-.eu.api.ovh.com
-.auth.cloud.ovh.net
 .ansible.com
 ansible-galaxy-ng.s3.dualstack.us-east-1.amazonaws.com
-

@@ -1,0 +1,32 @@
+---
+main_domain: "prod.ans.local"
+repo_server_fqdn: "infra-prod-repo01.{{ main_domain }}"
+
+ntpservers:
+  - ntp.ovh.net
+
+allowednets:
+  - '10.11.90.0/24'
+  - '10.11.52.0/24'
+  - '10.11.30.0/24'
+  - '10.11.70.0/24'
+
+repo_server_ip: "{{ hostvars[groups['repo'][0]]['ansible_host'] }}"
+proxy_port: 3128
+proxy_url: "http://{{ hostvars[groups['proxy'][0]]['ansible_host'] }}:{{ proxy_port }}"
+
+# ── Serveur de dépôts ───────────────────────────────────────────────────────
+alma_repos:
+  - baseos
+  - appstream
+  - extras
+
+alma_releases:
+  - "9"
+  - "10"
+
+repo_base_path: "/var/www/html/repos"
+
+repo_http_alias_list:
+  - "alma9-repos"
+  - "alma10-repos"

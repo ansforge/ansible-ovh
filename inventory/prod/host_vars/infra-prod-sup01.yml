@@ -1,2 +1,3 @@
 ---
 ansible_host: 10.11.90.18
+fqdn: "infra-prod-sup01.prod.ans.local"

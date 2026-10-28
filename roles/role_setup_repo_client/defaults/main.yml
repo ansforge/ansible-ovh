@@ -1,5 +1,32 @@
 ---
-repo_server_ip: 10.25.50.103
-repo_url: http://{{ repo_server_ip }}/repos
-gpg_key_url: https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux
-local_gpg_key_path: /etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux
+repo_url: "http://{{ repo_server_fqdn }}/repos"
+repo_gpg_dir: /etc/pki/rpm-gpg
+
+alma_major: "{{ ansible_distribution_major_version }}"
+local_gpg_key_path: "{{ repo_gpg_dir }}/RPM-GPG-KEY-AlmaLinux-{{ alma_major }}"
+gpg_key_url: "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{{ alma_major }}"
+repo_legacy_alma_key: "{{ repo_gpg_dir }}/RPM-GPG-KEY-AlmaLinux"
+
+repo_client_proxy_env: "{{ proxy_env }}"
+
+repo_all_gpg_keys: >-
+  {{ repositories | map(attribute='gpgkey', default=gpgkey) | unique | list }}
+
+repo_gpg_normalized_keys: >-
+  {{ repo_all_gpg_keys
+     | map('regex_replace', 'RPM-GPG-KEY-AlmaLinux$', 'RPM-GPG-KEY-AlmaLinux-' ~ alma_major)
+     | unique | list }}
+
+repo_remote_gpg_keys: >-
+  {{ repo_gpg_normalized_keys
+     | select('match', '^https?://') | unique | list }}
+
+repo_gpg_local_paths: >-
+  {{ repo_gpg_normalized_keys
+     | map('regex_replace', '^https?://.*/', repo_gpg_dir ~ '/')
+     | map('regex_replace', '^file://', '')
+     | unique | list }}
+
+repo_force_local_gpgkey: true
+repo_local_proxy_bypass: true
+repo_makecache_timeout: 300

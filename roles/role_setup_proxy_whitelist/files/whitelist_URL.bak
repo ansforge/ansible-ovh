@@ -1,0 +1,21 @@
+# Fichier whitelist pour Squid
+# Un domaine par ligne.
+# ATTENTION : une entrée « exemple.com » ne matche QUE l'hôte exact.
+#             Pour inclure les sous-domaines, préfixer par un point : « .exemple.com ».
+
+# ── Usage général ───────────────────────────────────────────────────────────
+google.fr
+youtube.com
+github.com
+
+# ── Dépôts AlmaLinux (mise en miroir par infra-prod-repo01) ─────────────────
+.almalinux.org
+.cloudflarestorage.com
+
+# ── Supervision : Grafana ───────────────────────────────────────────────────
+rpm.grafana.com
+.grafana.com
+
+# ── Supervision : InfluxData (InfluxDB 2, Telegraf) ─────────────────────────
+repos.influxdata.com
+.influxdata.com
