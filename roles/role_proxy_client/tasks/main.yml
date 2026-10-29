@@ -1,0 +1,47 @@
+---
+- name: Vérifier que le proxy est défini dans l'inventaire
+  ansible.builtin.assert:
+    that:
+      - proxy_url is defined
+      - proxy_no_proxy is defined
+    fail_msg: "proxy_url / proxy_no_proxy doivent être définis (group_vars/all)"
+    quiet: true
+
+- name: Déployer la configuration proxy des sessions
+  ansible.builtin.template:
+    src: proxy.sh.j2
+    dest: "{{ proxy_client_profile_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Tester la sortie Internet via le proxy
+  ansible.builtin.uri:
+    url: "{{ proxy_client_test_url }}"
+    method: HEAD
+    status_code: "{{ proxy_client_test_status }}"
+    follow_redirects: none
+    timeout: 15
+  environment: "{{ proxy_env }}"
+  register: proxy_client_test
+  when: proxy_client_validate | bool
+  failed_when: false
+
+- name: Signaler un échec du test de sortie via le proxy
+  ansible.builtin.debug:
+    msg: >-
+      Sortie via {{ proxy_url }} vers {{ proxy_client_test_url }} impossible
+      ({{ proxy_client_test.msg | default('erreur inconnue') }}). Vérifier l'ACL Squid
+      (réseaux autorisés) et la whitelist de domaines.
+  when:
+    - proxy_client_validate | bool
+    - proxy_client_test.status | default(-1) not in proxy_client_test_status
+    - not (proxy_client_test_strict | bool)
+
+- name: Échouer si le test strict de sortie via le proxy est KO
+  ansible.builtin.fail:
+    msg: "Sortie via {{ proxy_url }} impossible : {{ proxy_client_test.msg | default('erreur inconnue') }}"
+  when:
+    - proxy_client_validate | bool
+    - proxy_client_test.status | default(-1) not in proxy_client_test_status
+    - proxy_client_test_strict | bool

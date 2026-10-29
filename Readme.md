@@ -18,6 +18,7 @@ Ce dépôt centralise l'ensemble des playbooks, rôles et inventaires Ansible pe
 - [Playbooks](#-playbooks)
   - [Infrastructure (plays/infra)](#-infrastructure--playsinfra)
   - [Provisionnement VM (plays/vm_provisionning)](#-provisionnement-vm--playsvm_provisionning)
+  - [Pipeline automatisée (plays/pipeline)](#-pipeline-automatisée--playspipeline)
   - [Patching (plays/vm_patching)](#-patching--playsvm_patching)
   - [Informations VM (plays/vm_infos)](#-informations-vm--playsvm_infos)
 - [Vaults (secrets chiffrés)](#-vaults-secrets-chiffrés)
@@ -64,7 +65,7 @@ Ce dépôt centralise l'ensemble des playbooks, rôles et inventaires Ansible pe
 git clone https://github.com/ansforge/ansible-ovh.git ~/ansible-ovh
 
 # 2. Installer la collection FreeIPA
-ansible-galaxy collection install freeipa.ansible_freeipa -p ~/ansible-ovh/collections
+ansible-galaxy collection install -r ~/ansible-ovh/requirements.yml -p ~/ansible-ovh/collections
 
 # 3. Vérifier la connectivité vers toutes les machines
 ansible all -m ping
@@ -99,6 +100,7 @@ ansible-ovh/
 ├── plays/
 │   ├── infra/                          # Playbooks déploiement infrastructure
 │   ├── vm_provisionning/              # Playbooks provisionnement VMs
+│   ├── pipeline/                      # Chaîne automatisée (ovh-vm) : attente, provisionnement, validation
 │   ├── vm_patching/                   # Playbooks mise à jour / patching
 │   └── vm_infos/                      # Playbooks collecte d'informations
 ├── roles/
@@ -262,6 +264,35 @@ proxy_listen_ip: 10.11.70.11     # IP d'écoute Squid (2ème interface)
 | `play_installation_openscap.yml` | Installe OpenSCAP | `ansible-playbook plays/vm_provisionning/play_installation_openscap.yml -e "HOSTS=infra_prod"` |
 | `play_hardening_openscap.yml` | Applique le durcissement CIS L1 | `ansible-playbook plays/vm_provisionning/play_hardening_openscap.yml -e "HOSTS=infra_prod"` |
 | `play_remediation_openscap.yml` | Applique les remédiations OpenSCAP | `ansible-playbook plays/vm_provisionning/play_remediation_openscap.yml -e "HOSTS=infra_prod"` |
+
+### 🤖 Pipeline automatisée — `plays/pipeline/`
+
+Chaîne de bout en bout pilotée par l'orchestrateur `ovh-vm` (dépôt `ovh-vm-pipeline`) après la création
+de la VM par Terragrunt. Les playbooks existants sont **réutilisés tels quels** (`import_playbook`) ;
+chaque étape porte un tag.
+
+| Playbook | Rôle |
+|---|---|
+| `play_vm_wait.yml` | Attend SSH + fin de cloud-init, écrit les facts utiles (version AlmaLinux) |
+| `play_vm_provision.yml` | Enchaîne les étapes : `ssh_keys`, `network`, `dns`, `repos`, `proxy`, `toolbox`, `ntp`, `freeipa`, `freeipa_dns` (+ optionnelles `patching`, `openscap`, `openscap_remediation`, `wazuh`) |
+| `play_vm_network.yml` | Configure les interfaces secondaires (adresses Terraform, identifiées par MAC) — `role_network_interfaces` |
+| `play_vm_proxy_client.yml` | Exporte la configuration proxy et teste la sortie Squid — `role_proxy_client` |
+| `play_vm_freeipa_enroll.yml` | Enrôlement FreeIPA via `role_setup_freeipa_client` : variables de l'inventaire courant, AC copiée par SSH depuis le serveur IPA, hôte déjà enrôlé laissé intact (`-e freeipa_force_reenroll=true` pour forcer) |
+| `play_vm_freeipa_dns.yml` | Crée les enregistrements DNS A/PTR de la VM dans FreeIPA |
+| `play_vm_validate.yml` | Contrôles post-provisionnement + rapport JSON (échec si contrôle critique KO) |
+
+```bash
+# Provisionnement manuel d'une VM déjà inventoriée (étapes par défaut)
+ansible-playbook plays/pipeline/play_vm_provision.yml -e HOSTS=infra-prod-newvm01 --ask-vault-pass
+# Étapes choisies (les optionnelles doivent être citées explicitement)
+ansible-playbook plays/pipeline/play_vm_provision.yml -e HOSTS=infra-prod-newvm01 \
+  --tags ssh_keys,dns,repos,ntp,freeipa,patching --ask-vault-pass
+# Validation
+ansible-playbook plays/pipeline/play_vm_validate.yml -e HOSTS=infra-prod-newvm01
+```
+
+> Les variables `vm_networks` et `fqdn` de `host_vars/<vm>.yml` sont écrites par la pipeline à partir de la
+> sortie Terraform `vm_inventory` (bloc balisé `BEGIN/END ovh-vm`).
 
 ### 🔄 Patching — `plays/vm_patching/`
 

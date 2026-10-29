@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Enregistrement DNS de la VM dans FreeIPA
+#
+# Crée l'enregistrement A <vm>.<domaine IPA> et le PTR lorsque la zone inverse
+# fait partie de ipa_reverse_zones (group_vars/ipaservers). Exécuté sur le
+# serveur IPA (délégation) avec le compte admin du vault FreeIPA. Idempotent.
+#
+# Usage : ansible-playbook plays/pipeline/play_vm_freeipa_dns.yml -e HOSTS=<vm> --ask-vault-pass
+# =============================================================================
+
+- name: Enregistrer la VM dans le DNS FreeIPA
+  hosts: "{{ HOSTS }}:!ipaservers"
+  gather_facts: false
+
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+
+  vars:
+    freeipa_dns_server: "{{ groups['ipaservers'] | first }}"
+    freeipa_dns_zone: "{{ hostvars[freeipa_dns_server]['ipaserver_domain'] | default(main_domain) }}"
+    freeipa_dns_reverse_zones: "{{ hostvars[freeipa_dns_server]['ipa_reverse_zones'] | default([]) }}"
+    freeipa_dns_reverse_zone: "{{ (ansible_host.split('.')[0:3] | reverse | join('.')) ~ '.in-addr.arpa.' }}"
+
+  tasks:
+    - name: Créer l'enregistrement A (et PTR si la zone inverse est gérée par IPA)
+      freeipa.ansible_freeipa.ipadnsrecord:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        zone_name: "{{ freeipa_dns_zone }}"
+        name: "{{ inventory_hostname }}"
+        a_ip_address: "{{ ansible_host }}"
+        a_create_reverse: "{{ freeipa_dns_reverse_zone in freeipa_dns_reverse_zones }}"
+        state: present
+      delegate_to: "{{ freeipa_dns_server }}"
+      become: true

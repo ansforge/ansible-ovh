@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Configuration des interfaces réseau secondaires
+#
+# Les réseaux d'index > 0 sont attachés à chaud par Terraform après le premier
+# démarrage : cloud-init ne les configure pas. Ce play leur applique l'adresse
+# fixe déclarée dans Terraform (variable d'hôte vm_networks, alimentée par la
+# sortie vm_inventory), en identifiant chaque interface par son adresse MAC.
+#
+# Usage : ansible-playbook plays/pipeline/play_vm_network.yml -e HOSTS=<vm>
+# =============================================================================
+
+- name: Configurer les interfaces réseau secondaires
+  hosts: "{{ HOSTS }}"
+  become: true
+  roles:
+    - role_network_interfaces

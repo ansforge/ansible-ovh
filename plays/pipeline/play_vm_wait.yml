@@ -1,0 +1,74 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Attente de disponibilité d'une VM nouvellement créée
+#
+# - attend l'ouverture du port SSH puis une connexion Ansible fonctionnelle ;
+# - attend la fin de cloud-init (évite les verrous dnf au premier démarrage) ;
+# - écrit un résumé des facts (distribution, version majeure…) pour l'inventaire.
+#
+# Usage (normalement appelé par ovh-vm avec un inventaire d'amorçage) :
+#   ansible-playbook plays/pipeline/play_vm_wait.yml -e HOSTS=<vm> \
+#     -e pipeline_facts_file=/chemin/facts.json
+# =============================================================================
+
+- name: Pipeline | Attendre la disponibilité de la VM
+  hosts: "{{ HOSTS }}"
+  gather_facts: false
+  vars:
+    vm_wait_timeout: 900
+
+  tasks:
+    - name: Attendre l'ouverture du port SSH
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ ansible_port | default(22) }}"
+        search_regex: OpenSSH
+        delay: 5
+        timeout: "{{ vm_wait_timeout }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Attendre une connexion Ansible fonctionnelle
+      ansible.builtin.wait_for_connection:
+        sleep: 10
+        timeout: "{{ vm_wait_timeout }}"
+
+    - name: Rechercher cloud-init
+      ansible.builtin.stat:
+        path: /usr/bin/cloud-init
+      register: vm_cloud_init_bin
+
+    - name: Attendre la fin de cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      register: vm_cloud_init
+      changed_when: false
+      # 0 = terminé, 2 = terminé avec erreurs récupérables (cloud-init >= 23.4)
+      failed_when: vm_cloud_init.rc not in [0, 2]
+      timeout: "{{ vm_wait_timeout }}"
+      when: vm_cloud_init_bin.stat.exists
+
+    - name: Collecter les facts système
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+          - network
+
+    - name: Écrire le résumé des facts pour la pipeline
+      ansible.builtin.copy:
+        dest: "{{ pipeline_facts_file }}"
+        content: "{{ vm_facts | to_nice_json }}\n"
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+      when: pipeline_facts_file is defined
+      vars:
+        vm_facts:
+          host: "{{ inventory_hostname }}"
+          distribution: "{{ ansible_facts['distribution'] }}"
+          distribution_major_version: "{{ ansible_facts['distribution_major_version'] }}"
+          distribution_version: "{{ ansible_facts['distribution_version'] }}"
+          hostname: "{{ ansible_facts['hostname'] }}"
+          fqdn: "{{ ansible_facts['fqdn'] }}"
+          default_ipv4: "{{ ansible_facts['default_ipv4']['address'] | default('') }}"
+          all_ipv4_addresses: "{{ ansible_facts['all_ipv4_addresses'] | default([]) }}"
+          cloud_init: "{{ (vm_cloud_init.stdout | default('absent')) | trim }}"

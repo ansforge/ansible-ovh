@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: role_network_interfaces
+  author: infra-team
+  description: Configure les interfaces réseau secondaires (adresses Terraform) via NetworkManager
+  license: proprietary
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions: ["9", "10"]
+dependencies: []
