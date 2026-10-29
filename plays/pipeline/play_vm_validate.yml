@@ -1,0 +1,210 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Validation post-provisionnement
+#
+# Exécute des contrôles techniques sur la VM selon les étapes jouées
+# (variable pipeline_steps), écrit un rapport JSON côté contrôleur puis échoue
+# si un contrôle critique est KO. Statuts : ok | warning (non critique) | failed.
+#
+# Usage :
+#   ansible-playbook plays/pipeline/play_vm_validate.yml -e HOSTS=<vm> \
+#     [-e pipeline_report_dir=/chemin] [-e '{"pipeline_steps": ["dns", "repos"]}']
+# =============================================================================
+
+- name: Pipeline | Valider la VM provisionnée
+  hosts: "{{ HOSTS }}"
+  become: true
+  gather_facts: true
+
+  vars:
+    pipeline_steps: [ssh_keys, network, dns, repos, proxy, toolbox, ntp, freeipa, freeipa_dns]
+    validation_report_dir: "{{ pipeline_report_dir | default(playbook_dir ~ '/../../reports/validation') }}"
+
+    validation_ipa_host: "{{ groups['ipaservers'] | first }}"
+    validation_ipa_fqdn: "{{ hostvars[validation_ipa_host]['ipa_server_fqdn'] | default(hostvars[validation_ipa_host]['fqdn']) }}"
+    validation_ipa_ip: "{{ hostvars[validation_ipa_host]['ansible_host'] }}"
+    validation_ipa_realm: "{{ hostvars[validation_ipa_host]['ipaserver_realm'] | default(main_domain | upper) }}"
+    validation_admin_user: "{{ ansible_user | default('almalinux') }}"
+    validation_fqdn: "{{ fqdn | default(inventory_hostname ~ '.' ~ main_domain) }}"
+    validation_ips: "{{ vm_networks | default([]) | selectattr('ip', 'defined') | map(attribute='ip') | select | list }}"
+    validation_pubkey_path: "{{ ssh_pub_key_path | default(lookup('ansible.builtin.env', 'HOME') ~ '/.ssh/id_rsa.pub') }}"
+    validation_pubkey: "{{ lookup('ansible.builtin.file', validation_pubkey_path, errors='ignore') | default('', true) }}"
+    validation_pubkey_material: "{{ (validation_pubkey.split() + ['', ''])[1] }}"
+    validation_proxy_test_url: "https://repo.almalinux.org/"
+
+    validation_checks:
+      - id: ssh_privileges
+        description: Connexion SSH et élévation de privilèges (sudo)
+        cmd: test "$(id -u)" -eq 0
+        critical: true
+        enabled: true
+      - id: ssh_controller_key
+        description: Clé publique du contrôleur Ansible autorisée
+        cmd: >-
+          test -n '{{ validation_pubkey_material }}' &&
+          grep -qF '{{ validation_pubkey_material }}' ~{{ validation_admin_user }}/.ssh/authorized_keys
+        critical: true
+        enabled: "{{ 'ssh_keys' in pipeline_steps }}"
+      - id: network_addresses
+        description: "Adresses IP Terraform présentes ({{ validation_ips | join(', ') }})"
+        cmd: >-
+          rc=0; for ip in {{ validation_ips | join(' ') }}; do
+          ip -4 -o addr show | grep -q "inet ${ip}/" || { echo "absente : ${ip}"; rc=1; }; done; exit $rc
+        critical: true
+        enabled: "{{ 'network' in pipeline_steps and validation_ips | length > 0 }}"
+      - id: dns_resolver
+        description: "Résolveur DNS = serveur FreeIPA ({{ validation_ipa_ip }})"
+        cmd: grep -E '^nameserver' /etc/resolv.conf && grep -qE '^nameserver[[:space:]]+{{ validation_ipa_ip }}$' /etc/resolv.conf
+        critical: true
+        enabled: "{{ 'dns' in pipeline_steps }}"
+      - id: dns_ipa_resolution
+        description: "Résolution de {{ validation_ipa_fqdn }}"
+        cmd: getent hosts {{ validation_ipa_fqdn }}
+        critical: true
+        enabled: "{{ 'dns' in pipeline_steps }}"
+      - id: repos_local
+        description: Dépôts locaux AlmaLinux actifs
+        cmd: dnf -q repolist --enabled && dnf -q repolist --enabled | grep -q 'alma{{ ansible_facts['distribution_major_version'] }}-local-baseos'
+        critical: true
+        enabled: "{{ 'repos' in pipeline_steps }}"
+      - id: repos_access
+        description: Métadonnées des dépôts locaux téléchargeables
+        cmd: timeout 300 dnf -q makecache --refresh
+        critical: true
+        enabled: "{{ 'repos' in pipeline_steps }}"
+      - id: proxy_profile
+        description: Variables proxy déployées pour les sessions
+        cmd: cat /etc/profile.d/zz-ovh-proxy.sh
+        critical: true
+        enabled: "{{ 'proxy' in pipeline_steps }}"
+      - id: proxy_egress
+        description: "Sortie Internet via le proxy ({{ validation_proxy_test_url }})"
+        cmd: >-
+          code=$(curl -sS -o /dev/null -I -w '%{http_code}' --max-time 15
+          -x '{{ proxy_url | default('') }}' '{{ validation_proxy_test_url }}'); echo "HTTP $code";
+          case "$code" in 200|301|302) exit 0 ;; *) exit 1 ;; esac
+        critical: false
+        enabled: "{{ 'proxy' in pipeline_steps }}"
+      - id: ntp_service
+        description: Service chronyd actif
+        cmd: systemctl is-active chronyd
+        critical: true
+        enabled: "{{ 'ntp' in pipeline_steps }}"
+      - id: ntp_source
+        description: "Source NTP = serveur FreeIPA ({{ validation_ipa_ip }})"
+        cmd: chronyc -n sources && chronyc -n sources | grep -q '{{ validation_ipa_ip }}'
+        critical: true
+        enabled: "{{ 'ntp' in pipeline_steps }}"
+      - id: ntp_sync
+        description: Horloge synchronisée
+        cmd: chronyc tracking && chronyc tracking | grep -qE '^Leap status[[:space:]]*:[[:space:]]*Normal'
+        critical: false
+        enabled: "{{ 'ntp' in pipeline_steps }}"
+      - id: hostname_fqdn
+        description: "Nom d'hôte = {{ validation_fqdn }}"
+        cmd: hostname -f && test "$(hostname -f)" = '{{ validation_fqdn }}'
+        critical: true
+        enabled: "{{ 'freeipa' in pipeline_steps }}"
+      - id: ipa_enrolled
+        description: "Hôte enrôlé dans FreeIPA (keytab host/{{ validation_fqdn }}@{{ validation_ipa_realm }})"
+        cmd: test -f /etc/ipa/default.conf && klist -kt /etc/krb5.keytab | grep -q 'host/{{ validation_fqdn }}@{{ validation_ipa_realm }}'
+        critical: true
+        enabled: "{{ 'freeipa' in pipeline_steps }}"
+      - id: sssd_active
+        description: Service sssd actif
+        cmd: systemctl is-active sssd
+        critical: true
+        enabled: "{{ 'freeipa' in pipeline_steps }}"
+      - id: ipa_identity
+        description: Résolution d'une identité FreeIPA (admin)
+        cmd: id admin
+        critical: true
+        enabled: "{{ 'freeipa' in pipeline_steps }}"
+      - id: ipa_dns_record
+        description: "Enregistrement DNS {{ validation_fqdn }} -> {{ ansible_host }} sur FreeIPA"
+        cmd: >-
+          command -v dig >/dev/null || { echo "dig absent (bind-utils)"; exit 1; };
+          dig +short '{{ validation_fqdn }}' @'{{ validation_ipa_ip }}' | grep -qx '{{ ansible_host }}'
+        critical: false
+        enabled: "{{ 'freeipa_dns' in pipeline_steps }}"
+      - id: patching_up_to_date
+        description: Système à jour (dépôts locaux)
+        cmd: dnf -q check-update
+        critical: false
+        enabled: "{{ 'patching' in pipeline_steps }}"
+      - id: openscap_report
+        description: Rapport d'audit OpenSCAP présent
+        cmd: ls -1 /var/log/openscap/report-*.html
+        critical: false
+        enabled: "{{ 'openscap' in pipeline_steps }}"
+      - id: selinux_enforcing
+        description: SELinux en mode enforcing
+        cmd: getenforce && test "$(getenforce)" = Enforcing
+        critical: false
+        enabled: true
+      - id: failed_units
+        description: Aucune unité systemd en échec
+        cmd: out=$(systemctl list-units --state=failed --no-legend --plain); echo "$out"; test -z "$out"
+        critical: false
+        enabled: true
+
+  tasks:
+    - name: Exécuter les contrôles
+      ansible.builtin.shell:
+        cmd: "{{ item.cmd }}"
+        executable: /bin/bash
+      loop: "{{ validation_checks }}"
+      loop_control:
+        label: "{{ item.id }}"
+      when: item.enabled | bool
+      register: validation_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Consolider les résultats
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results | default([]) + [validation_result] }}"
+      loop: "{{ validation_raw.results | selectattr('rc', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.item.id }}"
+      vars:
+        validation_result:
+          id: "{{ item.item.id }}"
+          description: "{{ item.item.description }}"
+          status: "{{ 'ok' if item.rc == 0 else ('failed' if (item.item.critical | bool) else 'warning') }}"
+          output: "{{ ((item.stdout | default('')) ~ '\n' ~ (item.stderr | default(''))) | trim | truncate(800) }}"
+
+    - name: Créer le répertoire du rapport
+      ansible.builtin.file:
+        path: "{{ validation_report_dir }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      become: false
+
+    - name: Écrire le rapport de validation
+      ansible.builtin.copy:
+        dest: "{{ validation_report_dir }}/validation-{{ inventory_hostname }}.json"
+        content: "{{ validation_report | to_nice_json }}\n"
+        mode: "0640"
+      delegate_to: localhost
+      become: false
+      vars:
+        validation_report:
+          host: "{{ inventory_hostname }}"
+          fqdn: "{{ validation_fqdn }}"
+          date: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+          steps: "{{ pipeline_steps }}"
+          checks: "{{ validation_results | default([]) }}"
+
+    - name: Bilan de la validation
+      ansible.builtin.assert:
+        that:
+          - validation_failed | length == 0
+        fail_msg: "Contrôles critiques en échec : {{ validation_failed | map(attribute='id') | join(', ') }}"
+        success_msg: >-
+          {{ validation_results | default([]) | selectattr('status', 'equalto', 'ok') | list | length }}
+          contrôle(s) OK, {{ validation_results | default([]) | selectattr('status', 'equalto', 'warning') | list | length }}
+          avertissement(s)
+      vars:
+        validation_failed: "{{ validation_results | default([]) | selectattr('status', 'equalto', 'failed') | list }}"
