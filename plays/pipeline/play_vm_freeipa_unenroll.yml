@@ -1,0 +1,47 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Retrait d'une VM de FreeIPA (décommissionnement)
+#
+# Supprime l'hôte <VM_FQDN> (keytab, certificats, enregistrements DNS A/PTR via
+# update_dns) puis tout enregistrement DNS résiduel <VM_NAME> de la zone IPA.
+# Exécuté sur le premier serveur du groupe ipaservers avec le compte admin du
+# vault FreeIPA. Idempotent : sans effet si l'hôte est déjà absent.
+#
+# Usage : ansible-playbook plays/pipeline/play_vm_freeipa_unenroll.yml \
+#           -e VM_NAME=<vm> -e VM_FQDN=<vm>.<domaine> --ask-vault-pass
+# =============================================================================
+
+- name: Retirer la VM de FreeIPA
+  hosts: ipaservers[0]
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+
+  vars:
+    freeipa_unenroll_zone: "{{ ipaserver_domain | default(main_domain) }}"
+
+  tasks:
+    - name: Contrôler les paramètres
+      ansible.builtin.assert:
+        that:
+          - VM_NAME is defined and VM_NAME | length > 0
+          - VM_FQDN is defined and VM_FQDN.startswith(VM_NAME ~ '.')
+        fail_msg: "VM_NAME et VM_FQDN (<VM_NAME>.<domaine>) sont requis"
+        quiet: true
+
+    - name: Supprimer l'hôte FreeIPA et ses enregistrements DNS
+      freeipa.ansible_freeipa.ipahost:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        name: "{{ VM_FQDN }}"
+        update_dns: true
+        state: absent
+
+    - name: Supprimer les enregistrements DNS résiduels
+      freeipa.ansible_freeipa.ipadnsrecord:
+        ipaadmin_password: "{{ vault_ipaadmin_password }}"
+        zone_name: "{{ freeipa_unenroll_zone }}"
+        name: "{{ VM_NAME }}"
+        del_all: true
+        state: absent
