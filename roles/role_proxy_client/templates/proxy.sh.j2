@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# Accès Internet sortant via le proxy Squid de la landing zone (domaines en liste blanche uniquement).
+export http_proxy="{{ proxy_url }}"
+export https_proxy="{{ proxy_url }}"
+export HTTP_PROXY="{{ proxy_url }}"
+export HTTPS_PROXY="{{ proxy_url }}"
+export no_proxy="{{ proxy_no_proxy }}"
+export NO_PROXY="{{ proxy_no_proxy }}"

@@ -1,0 +1,10 @@
+---
+# Fichier de profil exportant les variables proxy pour les sessions interactives.
+proxy_client_profile_path: /etc/profile.d/zz-ovh-proxy.sh
+
+# Test de sortie Internet via le proxy Squid (domaine présent dans la whitelist).
+proxy_client_validate: true
+proxy_client_test_url: "https://repo.almalinux.org/"
+proxy_client_test_status: [200, 301, 302]
+# Échec du test bloquant ? (false : simple avertissement, ex. VM hors ACL Squid)
+proxy_client_test_strict: false

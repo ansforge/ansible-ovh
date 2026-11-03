@@ -1,0 +1,83 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Enrôlement FreeIPA (rôle existant role_setup_freeipa_client)
+#
+# Par rapport à plays/vm_provisionning/play_lin_ipaclient_enroll.yml :
+#  - variables IPA lues dans l'inventaire sélectionné (serveur du groupe ipaservers),
+#    sans chemin codé en dur vers inventory/prod ;
+#  - AC FreeIPA copiée depuis le serveur IPA via SSH (canal authentifié) et transmise à
+#    ipa-client-install : le téléchargement « curl -k » du rôle n'est plus utilisé ;
+#  - hôte déjà enrôlé : aucune modification (ré-enrôlement : -e freeipa_force_reenroll=true).
+#
+# Usage : ansible-playbook plays/pipeline/play_vm_freeipa_enroll.yml -e HOSTS=<vm> --ask-vault-pass
+# =============================================================================
+
+- name: Enrôler la VM dans FreeIPA
+  hosts: "{{ HOSTS }}:!ipaservers"
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - ../../vaults/vault_freeipa.yml
+
+  vars:
+    freeipa_force_reenroll: false
+    freeipa_enroll_server: "{{ groups['ipaservers'] | first }}"
+    freeipa_enroll_domain: "{{ hostvars[freeipa_enroll_server]['ipaserver_domain'] }}"
+    freeipa_enroll_realm: "{{ hostvars[freeipa_enroll_server]['ipaserver_realm'] }}"
+    freeipa_enroll_fqdn: "{{ inventory_hostname }}.{{ freeipa_enroll_domain }}"
+    freeipa_ca_file: /etc/ipa/ca.crt
+    freeipa_ca_install_file: /etc/ipa/ca-ovh-vm.crt
+
+  tasks:
+    - name: Rechercher un enrôlement existant
+      ansible.builtin.shell: >-
+        test -f /etc/ipa/default.conf &&
+        klist -kt /etc/krb5.keytab | grep -q 'host/{{ freeipa_enroll_fqdn }}@{{ freeipa_enroll_realm }}'
+      register: freeipa_enroll_state
+      changed_when: false
+      failed_when: false
+
+    - name: Hôte déjà enrôlé
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} est déjà enrôlé dans {{ freeipa_enroll_realm }} : aucune modification"
+      when:
+        - freeipa_enroll_state.rc == 0
+        - not (freeipa_force_reenroll | bool)
+
+    - name: Enrôler l'hôte
+      when: freeipa_enroll_state.rc != 0 or (freeipa_force_reenroll | bool)
+      block:
+        - name: Lire l'AC FreeIPA sur le serveur IPA (canal SSH authentifié)
+          ansible.builtin.slurp:
+            src: /etc/ipa/ca.crt
+          delegate_to: "{{ freeipa_enroll_server }}"
+          register: freeipa_ca
+
+        - name: Créer /etc/ipa
+          ansible.builtin.file:
+            path: /etc/ipa
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Installer l'AC FreeIPA
+          ansible.builtin.copy:
+            content: "{{ freeipa_ca.content | b64decode }}"
+            dest: "{{ item }}"
+            owner: root
+            group: root
+            mode: "0644"
+          loop:
+            - "{{ freeipa_ca_file }}"
+            - "{{ freeipa_ca_install_file }}"
+
+        - name: Enrôler via le rôle existant
+          ansible.builtin.include_role:
+            name: role_setup_freeipa_client
+          vars:
+            ipaserver_domain: "{{ freeipa_enroll_domain }}"
+            ipaserver_realm: "{{ freeipa_enroll_realm }}"
+            ipa_server_fqdn: "{{ hostvars[freeipa_enroll_server]['ipa_server_fqdn'] | default(hostvars[freeipa_enroll_server]['fqdn']) }}"
+            ipa_server_ip: "{{ hostvars[freeipa_enroll_server]['ipa_server_ip'] | default(hostvars[freeipa_enroll_server]['ansible_host']) }}"

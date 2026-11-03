@@ -1,0 +1,99 @@
+---
+- name: Sélectionner les réseaux à configurer
+  ansible.builtin.set_fact:
+    network_targets: >-
+      {{ _candidates if (network_configure_primary | bool) else (_candidates | rejectattr('primary') | list) }}
+  vars:
+    _candidates: >-
+      {{ vm_networks
+         | selectattr('mac', 'defined') | selectattr('mac')
+         | selectattr('ip', 'defined') | selectattr('ip')
+         | selectattr('prefix', 'defined') | selectattr('prefix')
+         | list }}
+
+- name: Aucune interface secondaire à configurer
+  ansible.builtin.debug:
+    msg: "vm_networks ne contient aucun réseau secondaire avec MAC/IP : rien à faire"
+  when: network_targets | length == 0
+
+- name: Configurer les interfaces
+  when: network_targets | length > 0
+  block:
+    - name: Construire la table MAC -> interface
+      ansible.builtin.set_fact:
+        network_mac_map: "{{ dict(_macs | zip(_ifaces)) }}"
+      vars:
+        _ifaces: "{{ ansible_facts['interfaces'] | reject('equalto', 'lo') | list }}"
+        _macs: >-
+          {{ _ifaces
+             | map('replace', '-', '_')
+             | map('extract', ansible_facts)
+             | map(attribute='macaddress', default='')
+             | map('lower')
+             | list }}
+
+    - name: Vérifier que chaque réseau a une interface correspondante
+      ansible.builtin.assert:
+        that:
+          - (item.mac | lower) in network_mac_map
+        fail_msg: >-
+          Aucune interface avec la MAC {{ item.mac }} (réseau {{ item.name }}) sur {{ inventory_hostname }} :
+          interface non attachée ou MAC différente de l'état Terraform
+        quiet: true
+      loop: "{{ network_targets }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Configurer les profils NetworkManager
+      community.general.nmcli:
+        conn_name: "{{ network_conn_prefix }}-{{ _ifname }}"
+        ifname: "{{ _ifname }}"
+        type: ethernet
+        ip4: "{{ item.ip }}/{{ item.prefix }}"
+        gw4: "{{ item.gateway if (_default_route | bool) else omit }}"
+        never_default4: "{{ omit if (_default_route | bool) else true }}"
+        autoconnect: true
+        state: present
+      loop: "{{ network_targets }}"
+      loop_control:
+        label: "{{ item.name }} -> {{ network_mac_map[item.mac | lower] }} ({{ item.ip }}/{{ item.prefix }})"
+      vars:
+        _ifname: "{{ network_mac_map[item.mac | lower] }}"
+        _default_route: >-
+          {{ (item.primary | bool) and (network_configure_primary | bool)
+             and ((item.gateway | default('', true)) | length > 0) }}
+      register: network_nmcli
+
+    - name: Lister les profils NetworkManager actifs
+      ansible.builtin.command: nmcli -t -f NAME connection show --active
+      register: network_active
+      changed_when: false
+
+    - name: Activer les profils créés, modifiés ou inactifs
+      ansible.builtin.command:
+        cmd: nmcli connection up "{{ _conn }}"
+      loop: "{{ network_nmcli.results }}"
+      loop_control:
+        label: "{{ item.item.name }} ({{ _conn }})"
+      vars:
+        _conn: "{{ network_conn_prefix }}-{{ network_mac_map[item.item.mac | lower] }}"
+      when: (item.changed | default(false)) or (_conn not in network_active.stdout_lines)
+      changed_when: true
+      register: network_activation
+
+    - name: Rafraîchir les facts réseau
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+          - network
+      when: network_activation is changed
+
+    - name: Vérifier les adresses configurées
+      ansible.builtin.assert:
+        that:
+          - item.ip in ansible_facts['all_ipv4_addresses']
+        fail_msg: "Adresse {{ item.ip }} absente de {{ inventory_hostname }} après configuration ({{ item.name }})"
+        quiet: true
+      loop: "{{ network_targets }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.ip }})"

@@ -1,0 +1,126 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Chaîne de provisionnement d'une VM
+#
+# Réutilise les playbooks et rôles existants (plays/vm_provisionning, plays/vm_patching)
+# dans l'ordre documenté du Readme. Chaque étape porte un tag :
+#
+#   Par défaut : ssh_keys, network, dns, repos, proxy, toolbox, ntp, freeipa, freeipa_dns
+#   Optionnel  : patching, openscap, openscap_remediation, wazuh   (tag "never")
+#
+# L'enrôlement FreeIPA passe par play_vm_freeipa_enroll.yml (rôle existant, variables de
+# l'inventaire sélectionné, AC copiée par SSH, hôte déjà enrôlé laissé intact).
+#
+# Usage :
+#   ansible-playbook plays/pipeline/play_vm_provision.yml -e HOSTS=<vm>
+#   ansible-playbook plays/pipeline/play_vm_provision.yml -e HOSTS=<vm> --tags dns,repos,ntp
+#   ansible-playbook plays/pipeline/play_vm_provision.yml -e HOSTS=<vm> \
+#     --tags ssh_keys,network,dns,repos,toolbox,ntp,freeipa,patching,openscap
+#
+# Prérequis : la VM est dans l'inventaire (groupe almaN) ; vault FreeIPA accessible
+# (ANSIBLE_VAULT_PASSWORD_FILE ou --ask-vault-pass) pour les étapes freeipa*.
+# =============================================================================
+
+- name: Pipeline | Contrôles préalables
+  hosts: "{{ HOSTS }}"
+  gather_facts: true
+  tags: [always]
+  vars:
+    pipeline_default_steps: [ssh_keys, network, dns, repos, proxy, toolbox, ntp, freeipa, freeipa_dns]
+    pipeline_selected_steps: "{{ pipeline_default_steps if 'all' in ansible_run_tags else ansible_run_tags }}"
+  tasks:
+    - name: Vérifier que la cible est une AlmaLinux supportée
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'AlmaLinux'
+          - ansible_facts['distribution_major_version'] in ['9', '10']
+        fail_msg: >-
+          {{ inventory_hostname }} : distribution non supportée
+          ({{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }})
+        quiet: true
+
+    - name: Vérifier l'appartenance au groupe almaN (variables de dépôts)
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname in (groups['alma' ~ ansible_facts['distribution_major_version']] | default([]))
+        fail_msg: >-
+          {{ inventory_hostname }} doit appartenir au groupe
+          [alma{{ ansible_facts['distribution_major_version'] }}] de l'inventaire
+        quiet: true
+
+    - name: Vérifier la présence du serveur FreeIPA (DNS, NTP, enrôlement)
+      ansible.builtin.assert:
+        that: groups['ipaservers'] | default([]) | length > 0
+        fail_msg: "Le groupe [ipaservers] doit être renseigné dans l'inventaire"
+        quiet: true
+      when: pipeline_selected_steps | intersect(['dns', 'ntp', 'freeipa', 'freeipa_dns']) | length > 0
+
+    - name: Vérifier la présence du serveur de dépôts
+      ansible.builtin.assert:
+        that: groups['repo'] | default([]) | length > 0
+        fail_msg: "Le groupe [repo] doit être renseigné dans l'inventaire"
+        quiet: true
+      when: "'repos' in pipeline_selected_steps"
+
+    - name: Vérifier la présence du proxy
+      ansible.builtin.assert:
+        that: groups['proxy'] | default([]) | length > 0
+        fail_msg: "Le groupe [proxy] doit être renseigné dans l'inventaire"
+        quiet: true
+      when: pipeline_selected_steps | intersect(['repos', 'proxy']) | length > 0
+
+- name: Pipeline | Clés SSH du contrôleur
+  ansible.builtin.import_playbook: ../vm_provisionning/play_lin_ssh_key_deploy.yml
+  tags: [ssh_keys]
+
+- name: Pipeline | Interfaces réseau secondaires
+  ansible.builtin.import_playbook: play_vm_network.yml
+  tags: [network]
+
+- name: Pipeline | DNS (resolv.conf)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_lin_resolvconf_deploy.yml
+  tags: [dns]
+
+- name: Pipeline | Dépôts locaux
+  ansible.builtin.import_playbook: ../vm_provisionning/play_lin_repo_client_deploy.yml
+  tags: [repos]
+
+- name: Pipeline | Proxy (client)
+  ansible.builtin.import_playbook: play_vm_proxy_client.yml
+  tags: [proxy]
+
+- name: Pipeline | Outils système
+  ansible.builtin.import_playbook: ../vm_provisionning/play_lin_toolbox_deploy.yml
+  tags: [toolbox]
+
+- name: Pipeline | Synchronisation horaire (chrony)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_lin_chrony_client_deploy.yml
+  tags: [ntp]
+
+- name: Pipeline | Enrôlement FreeIPA
+  ansible.builtin.import_playbook: play_vm_freeipa_enroll.yml
+  tags: [freeipa]
+
+- name: Pipeline | Enregistrement DNS FreeIPA
+  ansible.builtin.import_playbook: play_vm_freeipa_dns.yml
+  tags: [freeipa_dns]
+
+- name: Pipeline | Mises à jour (optionnel)
+  ansible.builtin.import_playbook: ../vm_patching/play_lin_update.yml
+  tags: [patching, never]
+
+- name: Pipeline | Installation OpenSCAP (optionnel)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_installation_openscap.yml
+  tags: [openscap, never]
+
+- name: Pipeline | Audit OpenSCAP CIS L1 (optionnel)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_hardening_openscap.yml
+  tags: [openscap, never]
+
+- name: Pipeline | Remédiation OpenSCAP (optionnel)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_remediation_openscap.yml
+  tags: [openscap_remediation, never]
+
+- name: Pipeline | Agent Wazuh (optionnel)
+  ansible.builtin.import_playbook: ../vm_provisionning/play_installation_wazuh.yml
+  tags: [wazuh, never]

@@ -1,0 +1,11 @@
+---
+# Réseaux de la VM (ordre Terraform), renseignés par la pipeline dans host_vars :
+#   - { name: <réseau>, ip: 10.11.90.20, prefix: 24, mac: "fa:16:3e:..", gateway: "", primary: true }
+vm_networks: []
+
+# L'interface primaire est configurée au démarrage (DHCP/cloud-init) et porte la
+# session SSH : elle n'est reconfigurée que si cette option est activée.
+network_configure_primary: false
+
+# Préfixe des profils NetworkManager créés (ex. "lz-eth1").
+network_conn_prefix: lz

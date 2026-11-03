@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# Pipeline ovh-vm | Accès sortant via le proxy Squid
+#
+# Exporte http(s)_proxy / no_proxy (valeurs de group_vars/all) pour les
+# sessions et teste la sortie vers un domaine de la whitelist.
+# Rappel : l'ACL Squid (role_setup_proxy_server) n'autorise que 10.11.90.0/24.
+#
+# Usage : ansible-playbook plays/pipeline/play_vm_proxy_client.yml -e HOSTS=<vm>
+# =============================================================================
+
+- name: Configurer le client proxy
+  hosts: "{{ HOSTS }}:!proxy"
+  become: true
+  roles:
+    - role_proxy_client
